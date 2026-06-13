@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psiwatch"
+version = "0.1.0"
+description = "A zero-dependency Python library and CLI for detecting dataset drift in ML pipelines."
+authors = [{ name = "Tharun", email = "neetibyaevra@gmail.com" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+dependencies = []
+
+keywords = ["data drift", "machine learning", "data science", "monitoring", "csv", "statistics"]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/tharunstryker/psiwatch"
+Repository = "https://github.com/tharunstryker/psiwatch"
+
+[project.scripts]
+psiwatch = "psiwatch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
