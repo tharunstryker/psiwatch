@@ -9,13 +9,15 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/pypi/v/psiwatch?style=flat-square&labelColor=0D0D1A&color=7C3AED" />
+  &nbsp;
+  <img src="https://img.shields.io/pypi/dm/psiwatch?style=flat-square&labelColor=0D0D1A&color=00D4FF" />
+  &nbsp;
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=flat-square&logo=python&logoColor=white&labelColor=0D0D1A" />
   &nbsp;
   <img src="https://img.shields.io/badge/dependencies-zero-22c55e?style=flat-square&labelColor=0D0D1A" />
   &nbsp;
   <img src="https://img.shields.io/badge/license-MIT-7C3AED?style=flat-square&labelColor=0D0D1A" />
-  &nbsp;
-  <img src="https://img.shields.io/badge/version-0.1.0-00D4FF?style=flat-square&labelColor=0D0D1A" />
   &nbsp;
   <img src="https://img.shields.io/badge/platform-Termux%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-7C3AED?style=flat-square&labelColor=0D0D1A" />
 </p>
@@ -332,3 +334,4 @@ philosophy: "No framework. No build step. No shortcuts."
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=7C3AED&height=100&section=footer&animation=fadeIn" width="100%" />
 </p>
+
