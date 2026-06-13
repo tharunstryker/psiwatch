@@ -1,104 +1,124 @@
-<p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=7C3AED&height=140&section=header&text=psiwatch&fontColor=ffffff&fontSize=40&fontAlignY=35&desc=Dataset+drift+detection+for+ML+pipelines&descAlignY=55&descSize=16&animation=fadeIn" width="100%" />
-</p>
 
-<p align="center">
-  <a href="https://git.io/typing-svg">
-    <img src="https://readme-typing-svg.demolab.com?font=Syncopate&weight=700&size=18&pause=1000&color=7C3AED&center=true&vCenter=true&width=820&lines=Know+when+your+data+changes.;Before+your+model+breaks.;PSI+%C2%B7+Chi-Square+%C2%B7+Mean+Shift+%C2%B7+Std+Shift;Zero+dependencies.+Pure+Python." alt="Typing SVG" />
-  </a>
-</p>
 
-<p align="center">
-  <img src="https://img.shields.io/pypi/v/psiwatch?style=flat-square&labelColor=0D0D1A&color=7C3AED" />
-  &nbsp;
-  <img src="https://img.shields.io/pypi/dm/psiwatch?style=flat-square&labelColor=0D0D1A&color=00D4FF" />
-  &nbsp;
-  <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=flat-square&logo=python&logoColor=white&labelColor=0D0D1A" />
-  &nbsp;
-  <img src="https://img.shields.io/badge/dependencies-zero-22c55e?style=flat-square&labelColor=0D0D1A" />
-  &nbsp;
-  <img src="https://img.shields.io/badge/license-MIT-7C3AED?style=flat-square&labelColor=0D0D1A" />
-  &nbsp;
-  <img src="https://img.shields.io/badge/platform-Termux%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-7C3AED?style=flat-square&labelColor=0D0D1A" />
-</p>
+```markdown
+# psiwatch
 
-<p align="center">
-  <a href="https://github.com/tharunstryker/psiwatch">
-    <img src="https://img.shields.io/badge/GitHub-tharunstryker%2Fpsiwatch-7C3AED?style=for-the-badge&logo=github&logoColor=white&labelColor=0D0D1A" />
-  </a>
-  &nbsp;
-  <a href="https://naeris.vercel.app">
-    <img src="https://img.shields.io/badge/Portfolio-naeris.vercel.app-00D4FF?style=for-the-badge&logo=vercel&logoColor=white&labelColor=0D0D1A" />
-  </a>
-  &nbsp;
-  <a href="mailto:neetibyaevra@gmail.com">
-    <img src="https://img.shields.io/badge/Email-neetibyaevra%40gmail.com-7C3AED?style=for-the-badge&logo=gmail&logoColor=white&labelColor=0D0D1A" />
-  </a>
-</p>
+**Dataset drift detection for ML pipelines.**
+
+Know when your data changes. Before your model breaks.
+
+[
+
+![PyPI](https://img.shields.io/pypi/v/psiwatch?color=7C3AED)
+
+](https://pypi.org/project/psiwatch)
+[
+
+![License](https://img.shields.io/badge/license-MIT-7C3AED)
+
+](LICENSE)
+[
+
+![Python](https://img.shields.io/badge/python-3.8+-blue)
+
+](https://python.org)
+[
+
+![Dependencies](https://img.shields.io/badge/dependencies-zero-22c55e)
+
+](https://pypi.org/project/psiwatch)
 
 ---
 
-## ◈ What is psiwatch?
-
-You train a model on last year's data. Six months later it starts making wrong predictions — and nobody knows why.
-
-The reason? **Your data changed.** Scores dropped. New cities appeared. Distributions shifted. Your model never got the memo.
-
-`psiwatch` catches this. Point it at your old data and your new data — it tells you exactly what drifted, how badly, and gives you a single health score for the whole dataset.
-
-```bash
-psiwatch compare train.csv production.csv
-```
-
-```
-════════════════════════════════════════════════════════
-  PSIWATCH REPORT
-════════════════════════════════════════════════════════
-
-  [HIGH]   age    [numeric]
-     → Mean shifted by 3.14 std devs (22.40 → 29.50)
-     → PSI = 0.87 (significant drift)
-     ┌ Mean:   22.40 → 29.50
-     ├ Std:    1.02  → 1.26
-     └ PSI:    0.87
-
-  [HIGH]   city   [categorical]
-     → New categories found: ['Bangalore', 'Hyderabad']
-     ┌ PSI:         1.34
-     ├ Chi-square:  0.82
-     └ New cats:    ['Bangalore', 'Hyderabad']
-
-  [MEDIUM] score  [numeric]
-     → Mean shifted by 0.31 std devs (78.50 → 74.20)
-
-  [PASS]   grade  [categorical]
-     → No drift detected
-
-────────────────────────────────────────────────────────
-  HIGH: 2   MEDIUM: 1   PASS: 1
-
-  Drift Health Score: 25/100  (Significant Drift)
-════════════════════════════════════════════════════════
-```
-
----
-
-## ◈ Install
+## Install
 
 ```bash
 pip install psiwatch
 ```
 
-**Or from source:**
+---
+
+## What it does
+
+You train a model on last year's data. Six months later it starts making wrong predictions. The reason? Your data changed. Scores dropped. New categories appeared. Distributions shifted.
+
+`psiwatch` catches this. Point it at your old data and new data — it tells you exactly what drifted, how badly, and gives you a single health score.
 
 ```bash
-git clone https://github.com/tharunstryker/psiwatch
-cd psiwatch
-pip install -e .
+psiwatch compare train.csv production.csv
 ```
 
-> No numpy. No pandas. No scipy. Pure Python standard library only.
-> Runs anywhere Python runs — including **Termux on Android.**
+---
+
+## CLI Usage
+
+```bash
+psiwatch compare old.csv new.csv
+psiwatch compare old.csv new.csv --output report.html
+psiwatch compare old.csv new.csv --output report.json
+psiwatch compare old.csv new.csv --columns age,score,city
+```
+
+---
+
+## Library Usage
+
+```python
+import psiwatch
+
+# From CSV files
+psiwatch.compare("old.csv", "new.csv")
+
+# Save as HTML
+psiwatch.compare("old.csv", "new.csv", output="report.html")
+
+# From Python dicts
+psiwatch.compare_data(
+    old={"age": [22, 23, 21], "city": ["Chennai", "Delhi", "Mumbai"]},
+    new={"age": [28, 30, 29], "city": ["Chennai", "Bangalore", "Hyderabad"]}
+)
+
+# From plain lists
+psiwatch.compare_columns([22, 23, 21], [28, 30, 29], name="age")
+
+# Raw results
+result = psiwatch.analyze("old.csv", "new.csv")
+print(result["health_score"])  # 0-100
+```
+
+---
+
+## Detection Methods
+
+| Column Type | Methods |
+|---|---|
+| Numeric | Mean shift, Std shift, PSI, Percentile comparison |
+| Categorical | New category detection, Frequency shift, PSI, Chi-square |
+
+---
+
+## Drift Health Score
+
+| Score | Status |
+|---|---|
+| 80 - 100 | Stable |
+| 50 - 79 | Moderate Drift |
+| 0 - 49 | Significant Drift |
+
+---
+
+## Zero Dependencies
+
+Pure Python only. No numpy, pandas, or scipy. Runs anywhere Python runs including Termux on Android.
+
+---
+
+## License
+
+MIT © 2026 Tharun · [Naeris](https://naeris.vercel.app)
+```
+
+After committing on GitHub, tell me and I'll give you the Termux commands to rebuild and upload.> Runs anywhere Python runs — including **Termux on Android.**
 
 ---
 
