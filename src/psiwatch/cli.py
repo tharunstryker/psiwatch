@@ -6,6 +6,7 @@ Usage:
     psiwatch compare old.csv new.csv --output report.html
     psiwatch compare old.csv new.csv --output report.json
     psiwatch compare old.csv new.csv --columns age,score
+    psiwatch compare old.csv new.csv --psi-threshold 0.15
 """
 
 import argparse
@@ -24,6 +25,7 @@ Examples:
   psiwatch compare train.csv new.csv --output report.html
   psiwatch compare train.csv new.csv --output report.json
   psiwatch compare train.csv new.csv --columns age,score,city
+  psiwatch compare train.csv new.csv --psi-threshold 0.15
         """
     )
 
@@ -46,6 +48,17 @@ Examples:
         help='Comma-separated list of columns to compare (default: all)',
         default=None
     )
+    compare_parser.add_argument(
+        '--psi-threshold',
+        type=float,
+        default=None,
+        metavar='FLOAT',
+        help=(
+            'PSI value to treat as HIGH drift boundary (default: 0.25). '
+            'Medium threshold is auto-scaled to ~40%% of this value. '
+            'Example: --psi-threshold 0.15'
+        )
+    )
 
     args = parser.parse_args()
 
@@ -55,13 +68,21 @@ Examples:
 
     if args.command == 'compare':
         columns = [c.strip() for c in args.columns.split(',')] if args.columns else None
+        psi_threshold = args.psi_threshold
+
         try:
-            compare(args.old, args.new, output=args.output, columns=columns)
+            compare(
+                args.old,
+                args.new,
+                output=args.output,
+                columns=columns,
+                psi_threshold=psi_threshold,
+            )
         except FileNotFoundError as e:
-            print(f"\n  ERROR: Error: {e}")
+            print(f"\n  ERROR: {e}")
             sys.exit(1)
         except ValueError as e:
-            print(f"\n  ERROR: Error: {e}")
+            print(f"\n  ERROR: {e}")
             sys.exit(1)
         except Exception as e:
             print(f"\n  ERROR: Unexpected error: {e}")
