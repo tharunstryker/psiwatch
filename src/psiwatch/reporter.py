@@ -20,6 +20,16 @@ def _health_label(score):
         return ('[!!]', 'Significant Drift')
 
 
+def _fmt(v, decimals=4):
+    """Format a number, falling back to — for missing values."""
+    if v is None or v == '':
+        return '—'
+    try:
+        return f"{float(v):.{decimals}f}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
 # ─── Terminal ─────────────────────────────────────────────────────────────────
 
 def print_report(analysis):
@@ -27,9 +37,9 @@ def print_report(analysis):
     health = analysis['health_score']
     icon, label = _health_label(health)
 
-    print("\n" + "═" * 56)
+    print("\n" + "═" * 62)
     print("  PSIWATCH REPORT")
-    print("═" * 56)
+    print("═" * 62)
 
     for col, result in columns.items():
         sev = result['severity']
@@ -42,22 +52,27 @@ def print_report(analysis):
 
         m = result.get('metrics', {})
         if result['type'] == 'numeric' and m:
-            print(f"     ┌ Mean:   {m.get('baseline_mean','—')} → {m.get('new_mean','—')}")
-            print(f"     ├ Std:    {m.get('baseline_std','—')} → {m.get('new_std','—')}")
-            print(f"     └ PSI:    {m.get('psi','—')}")
+            print(f"     ┌ Mean:    {_fmt(m.get('baseline_mean'),2)} → {_fmt(m.get('new_mean'),2)}")
+            print(f"     ├ Std:     {_fmt(m.get('baseline_std'),2)} → {_fmt(m.get('new_std'),2)}")
+            print(f"     ├ PSI:     {_fmt(m.get('psi'),4)}")
+            print(f"     ├ Min:     {_fmt(m.get('baseline_min'),2)} → {_fmt(m.get('new_min'),2)}")
+            print(f"     ├ P25:     {_fmt(m.get('baseline_p25'),2)} → {_fmt(m.get('new_p25'),2)}")
+            print(f"     ├ Median:  {_fmt(m.get('baseline_median'),2)} → {_fmt(m.get('new_median'),2)}")
+            print(f"     ├ P75:     {_fmt(m.get('baseline_p75'),2)} → {_fmt(m.get('new_p75'),2)}")
+            print(f"     └ Max:     {_fmt(m.get('baseline_max'),2)} → {_fmt(m.get('new_max'),2)}")
         elif result['type'] == 'categorical' and m:
-            print(f"     ┌ PSI:         {m.get('psi','—')}")
-            print(f"     ├ Chi-square:  {m.get('chi_square','—')}")
+            print(f"     ┌ PSI:         {_fmt(m.get('psi'),4)}")
+            print(f"     ├ Chi-square:  {_fmt(m.get('chi_square'),4)}")
             print(f"     └ New cats:    {m.get('new_categories') or 'None'}")
 
     counts = {s: 0 for s in ['HIGH', 'MEDIUM', 'PASS', 'UNKNOWN']}
     for r in columns.values():
         counts[r['severity']] += 1
 
-    print("\n" + "─" * 56)
+    print("\n" + "─" * 62)
     print(f"  HIGH: {counts['HIGH']}   MEDIUM: {counts['MEDIUM']}   PASS: {counts['PASS']}")
     print(f"\n  {icon} Drift Health Score: {health}/100  ({label})")
-    print("═" * 56 + "\n")
+    print("═" * 62 + "\n")
 
 
 # ─── JSON ─────────────────────────────────────────────────────────────────────
@@ -81,9 +96,9 @@ def to_txt(analysis, filepath=None):
     icon, label = _health_label(health)
 
     lines = []
-    lines.append("=" * 56)
+    lines.append("=" * 62)
     lines.append("PSIWATCH REPORT")
-    lines.append("=" * 56)
+    lines.append("=" * 62)
 
     for col, result in columns.items():
         sev = result['severity']
@@ -96,18 +111,24 @@ def to_txt(analysis, filepath=None):
 
         m = result.get('metrics', {})
         if result['type'] == 'numeric' and m:
-            lines.append(f"  Mean: {m.get('baseline_mean')} -> {m.get('new_mean')}")
-            lines.append(f"  PSI:  {m.get('psi')}")
+            lines.append(f"  Mean:    {_fmt(m.get('baseline_mean'),2)} -> {_fmt(m.get('new_mean'),2)}")
+            lines.append(f"  Std:     {_fmt(m.get('baseline_std'),2)} -> {_fmt(m.get('new_std'),2)}")
+            lines.append(f"  PSI:     {_fmt(m.get('psi'),4)}")
+            lines.append(f"  Min:     {_fmt(m.get('baseline_min'),2)} -> {_fmt(m.get('new_min'),2)}")
+            lines.append(f"  P25:     {_fmt(m.get('baseline_p25'),2)} -> {_fmt(m.get('new_p25'),2)}")
+            lines.append(f"  Median:  {_fmt(m.get('baseline_median'),2)} -> {_fmt(m.get('new_median'),2)}")
+            lines.append(f"  P75:     {_fmt(m.get('baseline_p75'),2)} -> {_fmt(m.get('new_p75'),2)}")
+            lines.append(f"  Max:     {_fmt(m.get('baseline_max'),2)} -> {_fmt(m.get('new_max'),2)}")
 
     counts = {s: 0 for s in ['HIGH', 'MEDIUM', 'PASS']}
     for r in columns.values():
         if r['severity'] in counts:
             counts[r['severity']] += 1
 
-    lines.append("\n" + "-" * 56)
+    lines.append("\n" + "-" * 62)
     lines.append(f"HIGH: {counts['HIGH']}  MEDIUM: {counts['MEDIUM']}  PASS: {counts['PASS']}")
     lines.append(f"Drift Health Score: {health}/100 ({label})")
-    lines.append("=" * 56)
+    lines.append("=" * 62)
 
     output = "\n".join(lines)
 
@@ -153,23 +174,37 @@ def to_html(analysis, filepath=None):
 
         m = result.get('metrics', {})
         if result['type'] == 'numeric':
+            stats_rows = [
+                ("Mean",   m.get('baseline_mean'), m.get('new_mean')),
+                ("Std",    m.get('baseline_std'),  m.get('new_std')),
+                ("Min",    m.get('baseline_min'),  m.get('new_min')),
+                ("P25",    m.get('baseline_p25'),  m.get('new_p25')),
+                ("Median", m.get('baseline_median'), m.get('new_median')),
+                ("P75",    m.get('baseline_p75'),  m.get('new_p75')),
+                ("Max",    m.get('baseline_max'),  m.get('new_max')),
+            ]
+            table_rows = "".join(
+                f"<tr><td>{lbl}</td><td>{_fmt(b,2)}</td><td>{_fmt(n,2)}</td></tr>"
+                for lbl, b, n in stats_rows
+            )
             metrics_html = f"""
-            <div class="metrics">
-              <span>Mean: <b>{m.get('baseline_mean','—')} → {m.get('new_mean','—')}</b></span>
-              <span>Std: <b>{m.get('baseline_std','—')} → {m.get('new_std','—')}</b></span>
-              <span>PSI: <b>{m.get('psi','—')}</b></span>
-              <span>Median: <b>{m.get('baseline_median','—')} → {m.get('new_median','—')}</b></span>
+            <div class="stats-wrap">
+              <div class="psi-chip">PSI <b>{_fmt(m.get('psi'),4)}</b></div>
+              <table class="stats-table">
+                <thead><tr><th>Stat</th><th>Baseline</th><th>New</th></tr></thead>
+                <tbody>{table_rows}</tbody>
+              </table>
             </div>"""
         else:
             metrics_html = f"""
             <div class="metrics">
-              <span>PSI: <b>{m.get('psi','—')}</b></span>
-              <span>Chi²: <b>{m.get('chi_square','—')}</b></span>
+              <span>PSI: <b>{_fmt(m.get('psi'),4)}</b></span>
+              <span>Chi²: <b>{_fmt(m.get('chi_square'),4)}</b></span>
               <span>New categories: <b>{', '.join(m.get('new_categories', [])) or 'None'}</b></span>
             </div>"""
 
         rows_html += f"""
-        <div class="col-card">
+        <div class="col-card" style="border-left-color:{color}">
           <div class="col-header">
             <span class="col-name">{col}</span>
             <span class="col-type">{result['type']}</span>
@@ -243,7 +278,7 @@ def to_html(analysis, filepath=None):
     border-radius: 12px;
     padding: 1.25rem 1.5rem;
     margin-bottom: 1rem;
-    border-left: 4px solid {health_color};
+    border-left: 4px solid #334155;
   }}
   .col-header {{
     display: flex;
@@ -255,6 +290,31 @@ def to_html(analysis, filepath=None):
   .col-type {{ font-size: 0.75rem; color: #64748b; background: #0f172a; padding: 0.2rem 0.5rem; border-radius: 4px; }}
   .badge {{ font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 99px; color: white; margin-left: auto; }}
   .reasons {{ font-size: 0.85rem; color: #94a3b8; line-height: 1.6; margin-bottom: 0.75rem; }}
+  /* Numeric summary table */
+  .stats-wrap {{ display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }}
+  .psi-chip {{
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    align-self: center;
+  }}
+  .psi-chip b {{ color: #e2e8f0; }}
+  .stats-table {{
+    font-size: 0.78rem;
+    border-collapse: collapse;
+  }}
+  .stats-table th, .stats-table td {{
+    padding: 0.2rem 0.75rem;
+    text-align: right;
+    color: #94a3b8;
+  }}
+  .stats-table th {{ color: #64748b; font-weight: 600; border-bottom: 1px solid #334155; }}
+  .stats-table td:first-child {{ text-align: left; color: #64748b; }}
+  .stats-table b {{ color: #e2e8f0; }}
+  /* Categorical metrics */
   .metrics {{ display: flex; flex-wrap: wrap; gap: 0.75rem; }}
   .metrics span {{ font-size: 0.78rem; background: #0f172a; padding: 0.3rem 0.7rem; border-radius: 6px; color: #94a3b8; }}
   .metrics b {{ color: #e2e8f0; }}
