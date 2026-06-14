@@ -25,8 +25,11 @@ def _percentile(values, p):
     if not values:
         return 0.0
     s = sorted(values)
-    idx = int((p / 100) * (len(s) - 1))
-    return s[idx]
+    idx = p / 100 * (len(s) - 1)
+    lo = int(idx)
+    hi = min(lo + 1, len(s) - 1)
+    # Linear interpolation for accuracy
+    return s[lo] + (s[hi] - s[lo]) * (idx - lo)
 
 def _frequencies(values):
     total = len(values)
@@ -100,12 +103,26 @@ def _chi_square(baseline, new):
     return round(chi2, 4)
 
 
+# ─── Thresholds ───────────────────────────────────────────────────────────────
+
+DEFAULT_THRESHOLDS = {
+    'psi_medium': 0.1,
+    'psi_high': 0.25,
+    'mean_shift_medium': 0.2,
+    'mean_shift_high': 0.5,
+    'std_shift_medium': 0.2,
+    'std_shift_high': 0.5,
+    'category_share_shift': 0.15,
+    'chi_square_medium': 0.5,
+}
+
+
 # ─── Severity Scoring ─────────────────────────────────────────────────────────
 
-def _severity_from_psi(psi):
-    if psi > 0.25:
+def _severity_from_psi(psi, thresholds):
+    if psi > thresholds['psi_high']:
         return 'HIGH'
-    elif psi > 0.1:
+    elif psi > thresholds['psi_medium']:
         return 'MEDIUM'
     return 'PASS'
 
@@ -116,7 +133,8 @@ def _worst(a, b):
 
 # ─── Column Analyzers ─────────────────────────────────────────────────────────
 
-def analyze_numeric(baseline_raw, new_raw):
+def analyze_numeric(baseline_raw, new_raw, thresholds=None):
+    t = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     baseline = cast_numeric(baseline_raw)
     new = cast_numeric(new_raw)
 
@@ -136,10 +154,10 @@ def analyze_numeric(baseline_raw, new_raw):
     metrics['baseline_mean'] = round(b_mean, 4)
     metrics['new_mean'] = round(n_mean, 4)
 
-    if mean_shift > 0.5:
+    if mean_shift > t['mean_shift_high']:
         issues.append(f"Mean shifted by {mean_shift:.2f} std devs ({b_mean:.2f} → {n_mean:.2f})")
         severity = _worst(severity, 'HIGH')
-    elif mean_shift > 0.2:
+    elif mean_shift > t['mean_shift_medium']:
         issues.append(f"Mean shifted by {mean_shift:.2f} std devs ({b_mean:.2f} → {n_mean:.2f})")
         severity = _worst(severity, 'MEDIUM')
 
@@ -149,29 +167,40 @@ def analyze_numeric(baseline_raw, new_raw):
     metrics['baseline_std'] = round(b_std, 4)
     metrics['new_std'] = round(n_std, 4)
 
-    if std_shift > 0.5:
+    if std_shift > t['std_shift_high']:
         issues.append(f"Std dev shifted by {std_shift*100:.1f}% ({b_std:.2f} → {n_std:.2f})")
         severity = _worst(severity, 'HIGH')
-    elif std_shift > 0.2:
+    elif std_shift > t['std_shift_medium']:
         issues.append(f"Std dev shifted by {std_shift*100:.1f}%")
         severity = _worst(severity, 'MEDIUM')
 
     # PSI
     psi = _psi_numeric(baseline, new)
     metrics['psi'] = psi
-    psi_sev = _severity_from_psi(psi)
+    psi_sev = _severity_from_psi(psi, t)
     if psi_sev != 'PASS':
         issues.append(f"PSI = {psi} ({'significant' if psi_sev == 'HIGH' else 'moderate'} drift)")
     severity = _worst(severity, psi_sev)
 
-    # Percentiles
+    # Summary stats — baseline
+    metrics['baseline_min'] = round(min(baseline), 4)
+    metrics['baseline_p25'] = round(_percentile(baseline, 25), 4)
     metrics['baseline_median'] = round(_percentile(baseline, 50), 4)
+    metrics['baseline_p75'] = round(_percentile(baseline, 75), 4)
+    metrics['baseline_max'] = round(max(baseline), 4)
+
+    # Summary stats — new
+    metrics['new_min'] = round(min(new), 4)
+    metrics['new_p25'] = round(_percentile(new, 25), 4)
     metrics['new_median'] = round(_percentile(new, 50), 4)
+    metrics['new_p75'] = round(_percentile(new, 75), 4)
+    metrics['new_max'] = round(max(new), 4)
 
     return {'severity': severity, 'reasons': issues, 'metrics': metrics}
 
 
-def analyze_categorical(baseline_raw, new_raw):
+def analyze_categorical(baseline_raw, new_raw, thresholds=None):
+    t = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     baseline = [str(v) for v in baseline_raw]
     new = [str(v) for v in new_raw]
 
@@ -195,7 +224,7 @@ def analyze_categorical(baseline_raw, new_raw):
         base_share = base_freq.get(cat, 0)
         new_share = new_freq.get(cat, 0)
         shift = abs(new_share - base_share)
-        if shift > 0.15:
+        if shift > t['category_share_shift']:
             shifted.append(f"'{cat}' {base_share*100:.1f}% → {new_share*100:.1f}%")
             severity = _worst(severity, 'MEDIUM')
     if shifted:
@@ -204,7 +233,7 @@ def analyze_categorical(baseline_raw, new_raw):
     # PSI
     psi = _psi_categorical(base_freq, new_freq)
     metrics['psi'] = psi
-    psi_sev = _severity_from_psi(psi)
+    psi_sev = _severity_from_psi(psi, t)
     if psi_sev != 'PASS':
         issues.append(f"PSI = {psi}")
     severity = _worst(severity, psi_sev)
@@ -212,7 +241,7 @@ def analyze_categorical(baseline_raw, new_raw):
     # Chi-square
     chi2 = _chi_square(baseline, new)
     metrics['chi_square'] = chi2
-    if chi2 > 0.5:
+    if chi2 > t['chi_square_medium']:
         issues.append(f"Chi-square = {chi2} (distribution mismatch)")
         severity = _worst(severity, 'MEDIUM')
 
@@ -224,10 +253,15 @@ def analyze_categorical(baseline_raw, new_raw):
 
 # ─── Main Analyze Function ────────────────────────────────────────────────────
 
-def analyze(baseline_cols, new_cols, columns=None):
+def analyze(baseline_cols, new_cols, columns=None, thresholds=None):
     """
     Compare baseline and new column dicts.
     Optionally filter to specific columns.
+    thresholds: dict of override values — supported keys:
+        psi_medium (default 0.10), psi_high (default 0.25),
+        mean_shift_medium (0.2), mean_shift_high (0.5),
+        std_shift_medium (0.2), std_shift_high (0.5),
+        category_share_shift (0.15), chi_square_medium (0.5)
     Returns per-column results + overall drift health score.
     """
     common = set(baseline_cols.keys()) & set(new_cols.keys())
@@ -243,9 +277,9 @@ def analyze(baseline_cols, new_cols, columns=None):
     for col in sorted(common):
         col_type = detect_type(baseline_cols[col])
         if col_type == 'numeric':
-            result = analyze_numeric(baseline_cols[col], new_cols[col])
+            result = analyze_numeric(baseline_cols[col], new_cols[col], thresholds=thresholds)
         else:
-            result = analyze_categorical(baseline_cols[col], new_cols[col])
+            result = analyze_categorical(baseline_cols[col], new_cols[col], thresholds=thresholds)
         result['type'] = col_type
         results[col] = result
 
