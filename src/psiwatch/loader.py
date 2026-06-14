@@ -1,6 +1,6 @@
 """
 loader.py — Handles all input modes for psiwatch.
-Supports: CSV file paths, Python dicts, Python lists.
+Supports: CSV file paths, Python dicts, Python lists, pandas DataFrames.
 """
 
 import csv
@@ -42,6 +42,18 @@ def load_list(values, column_name="column"):
     return {column_name: [str(v) for v in values]}
 
 
+def load_dataframe(df):
+    """
+    Accept a pandas DataFrame and convert to dict of column_name -> list of values.
+    pandas is an optional dependency — only imported when a DataFrame is passed.
+    """
+    result = {}
+    for col in df.columns:
+        # Drop NaN/None, convert to string
+        result[col] = [str(v) for v in df[col].dropna().tolist()]
+    return result
+
+
 def detect_type(values):
     """Detect if a column is numeric or categorical."""
     numeric_count = 0
@@ -68,7 +80,7 @@ def cast_numeric(values):
 
 def resolve_input(source, column_name="column"):
     """
-    Smart resolver — accepts file path, dict, or list.
+    Smart resolver — accepts file path, dict, list, or pandas DataFrame.
     Always returns a dict of {column: [values]}.
     """
     if isinstance(source, str):
@@ -78,4 +90,17 @@ def resolve_input(source, column_name="column"):
     elif isinstance(source, list):
         return load_list(source, column_name)
     else:
-        raise TypeError(f"Unsupported input type: {type(source)}")
+        # Check for DataFrame without importing pandas at module level
+        # This keeps psiwatch zero-dependency for non-pandas users
+        try:
+            import pandas as pd
+            if isinstance(source, pd.DataFrame):
+                return load_dataframe(source)
+        except ImportError:
+            pass
+        raise TypeError(
+            f"Unsupported input type: {type(source).__name__}. "
+            "Expected a file path (str), dict, list, or pandas DataFrame."
+        )
+
+                
