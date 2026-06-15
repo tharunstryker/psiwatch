@@ -28,7 +28,6 @@ def _percentile(values, p):
     idx = p / 100 * (len(s) - 1)
     lo = int(idx)
     hi = min(lo + 1, len(s) - 1)
-    # Linear interpolation for accuracy
     return s[lo] + (s[hi] - s[lo]) * (idx - lo)
 
 def _frequencies(values):
@@ -88,15 +87,27 @@ def _psi_categorical(baseline_freq, new_freq):
 # ─── Chi-Square ───────────────────────────────────────────────────────────────
 
 def _chi_square(baseline, new):
-    """Chi-square statistic for categorical columns."""
-    all_cats = set(baseline) | set(new)
+    """
+    Chi-square statistic for categorical columns.
+    FIX: pre-compute counts with dict instead of .count() inside loop (was O(n²)).
+    """
     base_total = len(baseline)
     new_total = len(new)
+    all_cats = set(baseline) | set(new)
+
+    # Pre-compute counts — O(n) instead of O(n²)
+    base_counts = {}
+    for v in baseline:
+        base_counts[v] = base_counts.get(v, 0) + 1
+
+    new_counts = {}
+    for v in new:
+        new_counts[v] = new_counts.get(v, 0) + 1
 
     chi2 = 0.0
     for cat in all_cats:
-        expected = baseline.count(cat) / base_total if base_total else 1e-6
-        observed = new.count(cat) / new_total if new_total else 0
+        expected = base_counts.get(cat, 0) / base_total if base_total else 1e-6
+        observed = new_counts.get(cat, 0) / new_total if new_total else 0
         expected = max(expected, 1e-6)
         chi2 += ((observed - expected) ** 2) / expected
 
@@ -238,7 +249,7 @@ def analyze_categorical(baseline_raw, new_raw, thresholds=None):
         issues.append(f"PSI = {psi}")
     severity = _worst(severity, psi_sev)
 
-    # Chi-square
+    # Chi-square — now O(n) not O(n²)
     chi2 = _chi_square(baseline, new)
     metrics['chi_square'] = chi2
     if chi2 > t['chi_square_medium']:
@@ -257,38 +268,74 @@ def analyze(baseline_cols, new_cols, columns=None, thresholds=None):
     """
     Compare baseline and new column dicts.
     Optionally filter to specific columns.
-    thresholds: dict of override values — supported keys:
-        psi_medium (default 0.10), psi_high (default 0.25),
-        mean_shift_medium (0.2), mean_shift_high (0.5),
-        std_shift_medium (0.2), std_shift_high (0.5),
-        category_share_shift (0.15), chi_square_medium (0.5)
-    Returns per-column results + overall drift health score.
+
+    FIX: Warns about columns missing from one dataset instead of silently dropping.
+    FIX: Health score now caps at ≤50 if ANY column is HIGH severity,
+         instead of averaging — one HIGH in 20 columns no longer reads as Healthy.
     """
-    common = set(baseline_cols.keys()) & set(new_cols.keys())
+    baseline_keys = set(baseline_cols.keys())
+    new_keys = set(new_cols.keys())
+    common = baseline_keys & new_keys
+
+    # FIX: warn about dropped columns instead of silently ignoring
+    only_in_baseline = baseline_keys - new_keys
+    only_in_new = new_keys - baseline_keys
+    warnings = []
+    if only_in_baseline:
+        warnings.append(f"Columns only in baseline (skipped): {sorted(only_in_baseline)}")
+    if only_in_new:
+        warnings.append(f"Columns only in new data (skipped): {sorted(only_in_new)}")
 
     if columns:
         requested = set(columns)
-        common = common & requested
         missing = requested - common
         if missing:
-            raise ValueError(f"Columns not found in both datasets: {missing}")
+            raise ValueError(f"Columns not found in both datasets: {sorted(missing)}")
+        common = common & requested
 
     results = {}
     for col in sorted(common):
         col_type = detect_type(baseline_cols[col])
+
+        # FIX: detect_type fragility warning — mixed columns
+        numeric_ratio = sum(1 for v in baseline_cols[col] if _is_numeric(v)) / max(len(baseline_cols[col]), 1)
+        type_warning = None
+        if 0.5 < numeric_ratio < 0.8:
+            type_warning = f"Column '{col}' is {numeric_ratio*100:.0f}% numeric — treated as categorical. Cast to float if intended as numeric."
+
         if col_type == 'numeric':
             result = analyze_numeric(baseline_cols[col], new_cols[col], thresholds=thresholds)
         else:
             result = analyze_categorical(baseline_cols[col], new_cols[col], thresholds=thresholds)
+
         result['type'] = col_type
+        if type_warning:
+            result.setdefault('warnings', []).append(type_warning)
         results[col] = result
 
-    # Overall drift health score (0 = no drift, 100 = max drift)
+    # FIX: Health score — any HIGH column caps score at ≤50
+    # Logic: start at 100, subtract per-column penalty proportionally,
+    # then hard-cap if any HIGH exists.
     score_map = {'PASS': 0, 'MEDIUM': 50, 'HIGH': 100, 'UNKNOWN': 0}
     if results:
         raw_score = sum(score_map[r['severity']] for r in results.values()) / len(results)
         health = round(100 - raw_score)
+        has_high = any(r['severity'] == 'HIGH' for r in results.values())
+        if has_high:
+            health = min(health, 50)  # hard cap — any HIGH = not healthy
     else:
         health = 100
 
-    return {'columns': results, 'health_score': health}
+    return {
+        'columns': results,
+        'health_score': health,
+        'warnings': warnings,
+    }
+
+
+def _is_numeric(v):
+    try:
+        float(v)
+        return True
+    except (ValueError, TypeError):
+        return False

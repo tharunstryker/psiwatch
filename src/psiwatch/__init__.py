@@ -10,25 +10,13 @@ Usage as a library:
     # Compare with custom PSI threshold
     psiwatch.compare("old.csv", "new.csv", psi_threshold=0.15)
 
-    # Full threshold control
-    psiwatch.compare("old.csv", "new.csv", thresholds={
-        "psi_medium": 0.05,
-        "psi_high": 0.15,
-    })
-
     # Compare a pandas DataFrame directly
     import pandas as pd
     old_df = pd.read_csv("train.csv")
     new_df = pd.read_csv("production.csv")
     psiwatch.compare(old_df, new_df, output="report.html")
 
-    # compare_data also accepts DataFrames
-    psiwatch.compare_data(old_df, new_df)
-
-    # Compare specific columns only
-    psiwatch.compare("old.csv", "new.csv", columns=["age", "score"])
-
-    # Compare Python dicts directly (no files needed)
+    # Compare Python dicts directly
     psiwatch.compare_data(
         {"age": [22, 23, 21], "score": [78, 85, 70]},
         {"age": [28, 30, 29], "score": [45, 40, 38]}
@@ -40,27 +28,31 @@ Usage as a library:
     # Get raw analysis result as a dict (no print)
     result = psiwatch.analyze("old.csv", "new.csv")
     print(result["health_score"])
+
+    # CI/CD — raise exception if drift detected
+    psiwatch.compare("train.csv", "new.csv", fail_on_drift=True)
 """
 
 from .loader import resolve_input
 from .analyzer import analyze as _analyze
 from .reporter import output_report
+from .updater import check_for_update
+
+__version__ = "0.10.0"
+__all__ = ["compare", "compare_data", "compare_columns", "analyze"]
+
+# Version check runs once on import — silent, cached 24h, never blocks
+try:
+    check_for_update(__version__)
+except Exception:
+    pass
 
 
 def _build_thresholds(psi_threshold=None, thresholds=None):
-    """
-    Merge user-supplied threshold overrides.
-    psi_threshold is a convenience shortcut that sets both psi_medium
-    and psi_high proportionally (medium = threshold * 0.4, high = threshold).
-    A full `thresholds` dict takes precedence over psi_threshold for any
-    keys it explicitly provides.
-    """
     merged = {}
     if psi_threshold is not None:
         if not isinstance(psi_threshold, (int, float)) or psi_threshold <= 0:
             raise ValueError("psi_threshold must be a positive number")
-        # Scale medium threshold proportionally: ~40% of the high threshold,
-        # matching the default 0.10 / 0.25 ≈ 0.4 ratio.
         merged['psi_medium'] = round(psi_threshold * 0.4, 6)
         merged['psi_high'] = float(psi_threshold)
     if thresholds:
@@ -70,7 +62,27 @@ def _build_thresholds(psi_threshold=None, thresholds=None):
     return merged if merged else None
 
 
-def compare(old, new, output=None, columns=None, psi_threshold=None, thresholds=None):
+def _source_label(old, new):
+    """Build a human-readable source label for reports."""
+    def name(s):
+        if isinstance(s, str):
+            return os.path.basename(s)
+        try:
+            import pandas as pd
+            if isinstance(s, pd.DataFrame):
+                return f"DataFrame({len(s)} rows)"
+        except ImportError:
+            pass
+        if isinstance(s, dict):
+            return f"dict({len(s)} cols)"
+        if isinstance(s, list):
+            return f"list({len(s)} items)"
+        return type(s).__name__
+    import os
+    return f"baseline: {name(old)}  →  new: {name(new)}"
+
+
+def compare(old, new, output=None, columns=None, psi_threshold=None, thresholds=None, fail_on_drift=False):
     """
     Compare two datasets and print or save a drift report.
 
@@ -80,60 +92,43 @@ def compare(old, new, output=None, columns=None, psi_threshold=None, thresholds=
         output: optional output file path (.json, .txt, .html)
         columns: optional list of column names to compare
         psi_threshold: convenience param — sets the HIGH drift PSI boundary.
-            Medium is scaled to ~40% of this value automatically.
-            Example: psi_threshold=0.15 → medium=0.06, high=0.15
-        thresholds: dict of fine-grained threshold overrides. Supported keys:
-            psi_medium (default 0.10), psi_high (default 0.25),
-            mean_shift_medium (0.2), mean_shift_high (0.5),
-            std_shift_medium (0.2), std_shift_high (0.5),
-            category_share_shift (0.15), chi_square_medium (0.5)
+        thresholds: dict of fine-grained threshold overrides.
+        fail_on_drift: if True, raises DriftDetected exception when health_score < 80.
+                       Use this in CI/CD pipelines: psiwatch compare --fail-on-drift
 
-    Example:
-        psiwatch.compare("train.csv", "production.csv")
-        psiwatch.compare("train.csv", "production.csv", output="report.html")
-        psiwatch.compare("train.csv", "production.csv", psi_threshold=0.15)
+    Returns:
+        dict with 'columns', 'health_score', 'warnings'
+
+    Raises:
+        DriftDetected: if fail_on_drift=True and drift is detected
     """
     baseline = resolve_input(old)
     current = resolve_input(new)
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
     result = _analyze(baseline, current, columns=columns, thresholds=t)
-    output_report(result, output=output)
+    source_info = _source_label(old, new)
+    output_report(result, output=output, source_info=source_info)
+
+    if fail_on_drift and result['health_score'] < 80:
+        raise DriftDetected(
+            f"Drift detected — health score: {result['health_score']}/100. "
+            f"HIGH columns: {[c for c, r in result['columns'].items() if r['severity'] == 'HIGH']}"
+        )
+
     return result
 
 
-def compare_data(old_data, new_data, output=None, columns=None, psi_threshold=None, thresholds=None):
+def compare_data(old_data, new_data, output=None, columns=None, psi_threshold=None, thresholds=None, fail_on_drift=False):
     """
     Compare two datasets — accepts dicts, lists, or pandas DataFrames.
-
-    Args:
-        old_data: dict, list, or pandas DataFrame — baseline data
-        new_data: dict, list, or pandas DataFrame — new data
-        output: optional output file path
-        columns: optional list of column names to compare
-        psi_threshold: convenience PSI threshold override (see compare())
-        thresholds: dict of fine-grained threshold overrides (see compare())
-
-    Example:
-        import pandas as pd
-        psiwatch.compare_data(
-            pd.read_csv("train.csv"),
-            pd.read_csv("production.csv"),
-            psi_threshold=0.15
-        )
-        psiwatch.compare_data(
-            {"age": [22, 23, 21], "city": ["Chennai", "Delhi"]},
-            {"age": [28, 30, 29], "city": ["Mumbai", "Bangalore"]}
-        )
+    Alias for compare() with the same signature.
     """
-    baseline = resolve_input(old_data)
-    current = resolve_input(new_data)
-    t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
-    result = _analyze(baseline, current, columns=columns, thresholds=t)
-    output_report(result, output=output)
-    return result
+    return compare(old_data, new_data, output=output, columns=columns,
+                   psi_threshold=psi_threshold, thresholds=thresholds,
+                   fail_on_drift=fail_on_drift)
 
 
-def compare_columns(old_list, new_list, name="column", output=None, psi_threshold=None, thresholds=None):
+def compare_columns(old_list, new_list, name="column", output=None, psi_threshold=None, thresholds=None, fail_on_drift=False):
     """
     Compare two plain Python lists (single column).
 
@@ -142,17 +137,21 @@ def compare_columns(old_list, new_list, name="column", output=None, psi_threshol
         new_list: list — new values
         name: column name label (default: "column")
         output: optional output file path
-        psi_threshold: convenience PSI threshold override (see compare())
-        thresholds: dict of fine-grained threshold overrides (see compare())
-
-    Example:
-        psiwatch.compare_columns([22, 23, 21], [28, 30, 29], name="age")
+        psi_threshold: convenience PSI threshold override
+        thresholds: dict of fine-grained threshold overrides
+        fail_on_drift: raise DriftDetected if drift found
     """
     baseline = resolve_input(old_list, column_name=name)
     current = resolve_input(new_list, column_name=name)
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
     result = _analyze(baseline, current, thresholds=t)
     output_report(result, output=output)
+
+    if fail_on_drift and result['health_score'] < 80:
+        raise DriftDetected(
+            f"Drift detected in column '{name}' — health score: {result['health_score']}/100"
+        )
+
     return result
 
 
@@ -161,23 +160,11 @@ def analyze(old, new, columns=None, psi_threshold=None, thresholds=None):
     Run drift analysis and return raw result dict (no output).
     Useful for programmatic access.
 
-    Args:
-        old: file path (str), dict, list, or pandas DataFrame
-        new: file path (str), dict, list, or pandas DataFrame
-        columns: optional list of column names to compare
-        psi_threshold: convenience PSI threshold override (see compare())
-        thresholds: dict of fine-grained threshold overrides (see compare())
-
     Returns:
         dict with keys:
             'columns': per-column analysis
             'health_score': 0-100 (100 = no drift)
-
-    Example:
-        result = psiwatch.analyze("train.csv", "new.csv")
-        print(result["health_score"])
-        for col, data in result["columns"].items():
-            print(col, data["severity"])
+            'warnings': list of dataset-level warnings
     """
     baseline = resolve_input(old)
     current = resolve_input(new)
@@ -185,6 +172,13 @@ def analyze(old, new, columns=None, psi_threshold=None, thresholds=None):
     return _analyze(baseline, current, columns=columns, thresholds=t)
 
 
-__version__ = "0.2.0"
-__all__ = ["compare", "compare_data", "compare_columns", "analyze"]
+class DriftDetected(Exception):
+    """
+    Raised when fail_on_drift=True and drift is detected.
+    Use in CI/CD pipelines to fail the build on data drift.
 
+    Example GitHub Actions usage:
+        - name: Check data drift
+          run: psiwatch compare train.csv new.csv --fail-on-drift
+    """
+    pass

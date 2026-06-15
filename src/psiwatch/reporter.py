@@ -1,10 +1,14 @@
 """
 reporter.py — Handles all output formats for psiwatch.
 Supports: terminal print, .json, .txt, .html
+
+FIX: HTML report now includes timestamp + source file names.
+FIX: Warnings (dropped columns, mixed-type columns) shown in all output formats.
 """
 
 import json
 import os
+from datetime import datetime
 
 
 ICONS = {'HIGH': '[!!]', 'MEDIUM': '[~]', 'PASS': '[OK]', 'UNKNOWN': '[?]'}
@@ -21,7 +25,6 @@ def _health_label(score):
 
 
 def _fmt(v, decimals=4):
-    """Format a number, falling back to — for missing values."""
     if v is None or v == '':
         return '—'
     try:
@@ -30,20 +33,39 @@ def _fmt(v, decimals=4):
         return str(v)
 
 
+def _now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 # ─── Terminal ─────────────────────────────────────────────────────────────────
 
-def print_report(analysis):
+def print_report(analysis, source_info=None):
     columns = analysis['columns']
     health = analysis['health_score']
     icon, label = _health_label(health)
+    warnings = analysis.get('warnings', [])
 
     print("\n" + "═" * 62)
     print("  PSIWATCH REPORT")
+    if source_info:
+        print(f"  {source_info}")
+    print(f"  Generated: {_now()}")
     print("═" * 62)
+
+    # Warnings block
+    if warnings:
+        print("\n  [WARN]")
+        for w in warnings:
+            print(f"     ⚠  {w}")
 
     for col, result in columns.items():
         sev = result['severity']
         print(f"\n  {ICONS[sev]} {col}  [{result['type']}]  — {LABELS[sev]}")
+
+        # Column-level warnings
+        for w in result.get('warnings', []):
+            print(f"     ⚠  {w}")
+
         if result.get('reasons'):
             for reason in result['reasons']:
                 print(f"     → {reason}")
@@ -78,7 +100,8 @@ def print_report(analysis):
 # ─── JSON ─────────────────────────────────────────────────────────────────────
 
 def to_json(analysis, filepath=None):
-    output = json.dumps(analysis, indent=2)
+    enriched = {**analysis, 'generated_at': _now()}
+    output = json.dumps(enriched, indent=2)
     if filepath:
         with open(filepath, 'w') as f:
             f.write(output)
@@ -90,19 +113,30 @@ def to_json(analysis, filepath=None):
 
 # ─── TXT ──────────────────────────────────────────────────────────────────────
 
-def to_txt(analysis, filepath=None):
+def to_txt(analysis, filepath=None, source_info=None):
     columns = analysis['columns']
     health = analysis['health_score']
     icon, label = _health_label(health)
+    warnings = analysis.get('warnings', [])
 
     lines = []
     lines.append("=" * 62)
     lines.append("PSIWATCH REPORT")
+    if source_info:
+        lines.append(source_info)
+    lines.append(f"Generated: {_now()}")
     lines.append("=" * 62)
+
+    if warnings:
+        lines.append("\nWARNINGS:")
+        for w in warnings:
+            lines.append(f"  ! {w}")
 
     for col, result in columns.items():
         sev = result['severity']
         lines.append(f"\n[{sev}] {col} ({result['type']})")
+        for w in result.get('warnings', []):
+            lines.append(f"  ! {w}")
         if result.get('reasons'):
             for reason in result['reasons']:
                 lines.append(f"  -> {reason}")
@@ -131,23 +165,23 @@ def to_txt(analysis, filepath=None):
     lines.append("=" * 62)
 
     output = "\n".join(lines)
-
     if filepath:
         with open(filepath, 'w') as f:
             f.write(output)
         print(f"Report saved → {filepath}")
     else:
         print(output)
-
     return output
 
 
 # ─── HTML ─────────────────────────────────────────────────────────────────────
 
-def to_html(analysis, filepath=None):
+def to_html(analysis, filepath=None, source_info=None):
     columns = analysis['columns']
     health = analysis['health_score']
     _, label = _health_label(health)
+    warnings = analysis.get('warnings', [])
+    timestamp = _now()
 
     if health >= 80:
         health_color = "#22c55e"
@@ -165,6 +199,15 @@ def to_html(analysis, filepath=None):
         'PASS': '#22c55e',
         'UNKNOWN': '#94a3b8'
     }
+
+    # Warnings block HTML
+    warnings_html = ""
+    all_warnings = list(warnings)
+    for r in columns.values():
+        all_warnings.extend(r.get('warnings', []))
+    if all_warnings:
+        warn_items = "".join(f"<li>⚠ {w}</li>" for w in all_warnings)
+        warnings_html = f'<div class="warn-block"><ul>{warn_items}</ul></div>'
 
     rows_html = ""
     for col, result in columns.items():
@@ -219,6 +262,11 @@ def to_html(analysis, filepath=None):
         if r['severity'] in counts:
             counts[r['severity']] += 1
 
+    # FIX: timestamp + source in HTML
+    meta_line = f'<span class="meta-item">Generated: {timestamp}</span>'
+    if source_info:
+        meta_line += f'<span class="meta-item">{source_info}</span>'
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -246,7 +294,18 @@ def to_html(analysis, filepath=None):
     color: #f8fafc;
   }}
   h1 span {{ color: {health_color}; }}
-  .subtitle {{ color: #64748b; margin-top: 0.3rem; font-size: 0.9rem; }}
+  .meta {{ color: #475569; margin-top: 0.4rem; font-size: 0.8rem; display: flex; gap: 1.5rem; flex-wrap: wrap; }}
+  .meta-item::before {{ content: '◆ '; font-size: 0.6rem; vertical-align: middle; }}
+  .warn-block {{
+    background: #292219;
+    border: 1px solid #78350f;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.82rem;
+    color: #fbbf24;
+  }}
+  .warn-block ul {{ list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }}
   .summary {{
     display: flex;
     gap: 1.5rem;
@@ -272,7 +331,7 @@ def to_html(analysis, filepath=None):
   .health-label {{ font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; }}
   .health-score {{ font-size: 1.5rem; font-weight: 700; color: {health_color}; }}
   .bar-bg {{ background: #0f172a; border-radius: 99px; height: 8px; margin-top: 0.5rem; }}
-  .bar-fill {{ background: {bar_color}; height: 8px; border-radius: 99px; width: {health}%; transition: width 1s; }}
+  .bar-fill {{ background: {bar_color}; height: 8px; border-radius: 99px; width: {health}%; }}
   .col-card {{
     background: #1e293b;
     border-radius: 12px;
@@ -290,7 +349,6 @@ def to_html(analysis, filepath=None):
   .col-type {{ font-size: 0.75rem; color: #64748b; background: #0f172a; padding: 0.2rem 0.5rem; border-radius: 4px; }}
   .badge {{ font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 99px; color: white; margin-left: auto; }}
   .reasons {{ font-size: 0.85rem; color: #94a3b8; line-height: 1.6; margin-bottom: 0.75rem; }}
-  /* Numeric summary table */
   .stats-wrap {{ display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }}
   .psi-chip {{
     background: #0f172a;
@@ -313,8 +371,6 @@ def to_html(analysis, filepath=None):
   }}
   .stats-table th {{ color: #64748b; font-weight: 600; border-bottom: 1px solid #334155; }}
   .stats-table td:first-child {{ text-align: left; color: #64748b; }}
-  .stats-table b {{ color: #e2e8f0; }}
-  /* Categorical metrics */
   .metrics {{ display: flex; flex-wrap: wrap; gap: 0.75rem; }}
   .metrics span {{ font-size: 0.78rem; background: #0f172a; padding: 0.3rem 0.7rem; border-radius: 6px; color: #94a3b8; }}
   .metrics b {{ color: #e2e8f0; }}
@@ -324,8 +380,10 @@ def to_html(analysis, filepath=None):
 <body>
 <header>
   <h1>DRIFT<span>WATCH</span> REPORT</h1>
-  <p class="subtitle">Dataset drift analysis — generated by psiwatch</p>
+  <div class="meta">{meta_line}</div>
 </header>
+
+{warnings_html}
 
 <div class="summary">
   <div class="stat"><div class="num" style="color:#ef4444">{counts['HIGH']}</div><div class="lbl">High Drift</div></div>
@@ -350,22 +408,14 @@ def to_html(analysis, filepath=None):
         print(f"Report saved → {filepath}")
     else:
         print(html)
-
     return html
 
 
 # ─── Router ───────────────────────────────────────────────────────────────────
 
-def output_report(analysis, output=None):
-    """
-    Route to the correct output format.
-    output=None → terminal
-    output='report.json' → JSON file
-    output='report.txt' → TXT file
-    output='report.html' → HTML file
-    """
+def output_report(analysis, output=None, source_info=None):
     if output is None:
-        print_report(analysis)
+        print_report(analysis, source_info=source_info)
         return
 
     ext = os.path.splitext(output)[1].lower()
@@ -373,8 +423,8 @@ def output_report(analysis, output=None):
     if ext == '.json':
         to_json(analysis, output)
     elif ext == '.txt':
-        to_txt(analysis, output)
+        to_txt(analysis, output, source_info=source_info)
     elif ext == '.html':
-        to_html(analysis, output)
+        to_html(analysis, output, source_info=source_info)
     else:
         raise ValueError(f"Unsupported output format: {ext}. Use .json, .txt, or .html")

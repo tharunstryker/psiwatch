@@ -2,11 +2,11 @@
 
 How I built and published a Python package entirely from Android using Termux — with every error I hit and how I fixed it.
 
-**Author:** Tharun (TharunStryker)  
-**Course:** B.Tech AI & Data Science  
-**Built on:** Android phone, Termux  
-**Published:** https://pypi.org/project/psiwatch  
-**GitHub:** https://github.com/tharunstryker/psiwatch  
+**Author:** Tharun (TharunStryker)
+**Course:** B.Tech AI & Data Science
+**Built on:** Android phone, Termux
+**Published:** https://pypi.org/project/psiwatch
+**GitHub:** https://github.com/tharunstryker/psiwatch
 
 ---
 
@@ -22,15 +22,17 @@ From first line of code to published PyPI package — all on Android.
 
 ## What psiwatch does
 
-Detects dataset drift between two CSV files (or Python dicts/lists) using:
+Detects dataset drift between two CSV files (or Python dicts/lists/DataFrames) using:
 
 - **PSI** (Population Stability Index) — industry standard drift metric
 - **Mean shift** — did the average move significantly?
 - **Std deviation shift** — did the spread change?
 - **Chi-square** — is the category frequency mismatch statistically significant?
 - **New category detection** — did values appear that never existed in training data?
+- **Vanished category detection** — did training categories disappear from new data?
+- **Trend direction** — which way did numeric means move? (↑ ↓ →)
 
-Outputs a report to terminal, HTML, JSON, or TXT with a 0-100 Drift Health Score.
+Outputs to terminal, HTML, JSON, or TXT with a 0-100 Drift Health Score.
 
 ---
 
@@ -39,11 +41,12 @@ Outputs a report to terminal, HTML, JSON, or TXT with a 0-100 Drift Health Score
 ```
 psiwatch/
 ├── src/psiwatch/
-│   ├── __init__.py      <- public API
-│   ├── loader.py        <- CSV, dict, list input
-│   ├── analyzer.py      <- PSI, mean/std, chi-square
-│   ├── reporter.py      <- terminal, HTML, JSON, TXT
-│   └── cli.py           <- CLI entry point
+│   ├── __init__.py      ← public API + DriftDetected exception
+│   ├── loader.py        ← CSV, dict, list, DataFrame input
+│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend
+│   ├── reporter.py      ← terminal, HTML, JSON, TXT output
+│   ├── updater.py       ← PyPI version check + psiwatch update command
+│   └── cli.py           ← CLI entry point
 ├── samples/
 │   ├── train.csv
 │   └── new.csv
@@ -55,7 +58,21 @@ psiwatch/
 
 ---
 
-## Build order
+## Version history
+
+```
+v0.1.0  → Initial release — CSV, PSI, mean/std, chi-square, terminal/JSON/TXT output
+v0.2.0  → Custom thresholds, column filtering, HTML report, analyze() API
+v0.9.0  → pandas DataFrame support, list of dicts input, --fail-on-drift, DriftDetected
+           exception, health score hard-cap, missing column warnings, mixed-type warnings,
+           timestamp in all reports, chi-square O(n²) → O(n) fix, updater.py
+v0.10.0 → psiwatch update command, trend direction (↑↓→), vanished category detection,
+           banner alignment fix, CI auto-silence, --silent flag, JSON source_info field
+```
+
+---
+
+## Build order (first version)
 
 ```
 Week 1 → loader.py    — read CSVs, detect column types
@@ -78,6 +95,14 @@ Week 4 → __init__.py  — public library API
 pip install psiwatch
 ```
 
+### Upgrade
+
+```bash
+psiwatch update
+# or
+pip install --upgrade psiwatch
+```
+
 ### CLI
 
 ```bash
@@ -85,6 +110,11 @@ psiwatch compare old.csv new.csv
 psiwatch compare old.csv new.csv --output report.html
 psiwatch compare old.csv new.csv --output report.json
 psiwatch compare old.csv new.csv --columns age,score,city
+psiwatch compare old.csv new.csv --psi-threshold 0.15
+psiwatch compare old.csv new.csv --fail-on-drift
+psiwatch compare old.csv new.csv --silent
+psiwatch update
+psiwatch version
 ```
 
 ### Library
@@ -98,6 +128,7 @@ psiwatch.compare_columns([22,23,21], [28,30,29], name="age")
 
 result = psiwatch.analyze("old.csv", "new.csv")
 print(result["health_score"])
+print(result["columns"]["age"]["metrics"]["trend_direction"])  # "up" / "down" / "stable"
 ```
 
 ### Generate test data in Termux
@@ -130,7 +161,7 @@ psiwatch compare old_data.csv new_data.csv
 
 ## Publishing to PyPI from Termux
 
-> This is the hard part. Standard tools like twine are broken on Termux/Android. Here is what actually works.
+> Standard tools like twine are broken on Termux/Android. Here is what actually works.
 
 ### Step 1 — Create PyPI account
 
@@ -172,7 +203,7 @@ import requests, os, hashlib
 
 token = open(os.path.expanduser('~/token.txt')).read().strip()
 readme = open(os.path.expanduser('~/psiwatch/README.md')).read()
-VERSION = '0.1.0'  # change this every upload
+VERSION = '0.10.0'  # bump this every upload
 
 for fname in os.listdir('/data/data/com.termux/files/home/psiwatch/dist/'):
     if not fname.endswith(('.whl', '.tar.gz')):
@@ -226,17 +257,29 @@ PyPI never allows the same version twice. Always bump version before uploading.
 # 1. Bump version in pyproject.toml
 sed -i 's/version = "OLD"/version = "NEW"/' ~/psiwatch/pyproject.toml
 
-# 2. Bump version in upload.py
-sed -i "s/'version':'OLD'/'version':'NEW'/" ~/upload.py
+# 2. Bump version in __init__.py
+sed -i 's/__version__ = "OLD"/__version__ = "NEW"/' ~/psiwatch/src/psiwatch/__init__.py
 
-# 3. Clean old build files
+# 3. Bump version in upload.py
+sed -i "s/VERSION = 'OLD'/VERSION = 'NEW'/" ~/upload.py
+
+# 4. Clean old build files
 rm -rf ~/psiwatch/dist
 
-# 4. Rebuild
+# 5. Rebuild
 cd ~/psiwatch && python -m build
 
-# 5. Upload
+# 6. Upload
 python3 ~/upload.py
+```
+
+---
+
+## Run Tests
+
+```bash
+cd ~/psiwatch
+PYTHONPATH=src python3 tests/test_analyzer.py
 ```
 
 ---
@@ -271,7 +314,7 @@ ModuleNotFoundError: No module named 'rich'
 ModuleNotFoundError: No module named 'id'
 ```
 
-**Cause:** twine 3.x and 4.x both broken on Python 3.13 in Termux. Missing deps can't be installed because they need Rust.
+**Cause:** twine 3.x and 4.x both broken on Python 3.13 in Termux.
 
 **Fix:** Skip twine entirely. Use the custom `upload.py` script that uses only `requests`.
 
@@ -305,14 +348,7 @@ If permission dialog doesn't appear:
 
 **Cause:** PyPI never allows uploading the same version twice.
 
-**Fix:**
-```bash
-sed -i 's/version = "0.1.0"/version = "0.2.0"/' ~/psiwatch/pyproject.toml
-sed -i "s/'version':'0.1.0'/'version':'0.2.0'/" ~/upload.py
-rm -rf ~/psiwatch/dist
-python -m build
-python3 ~/upload.py
-```
+**Fix:** Bump all three version locations (pyproject.toml, `__init__.py`, upload.py), clean dist/, rebuild.
 
 ---
 
@@ -396,16 +432,12 @@ cat ~/token.txt  # verify
 
 ```
 ModuleNotFoundError: No module named 'requests'
-ModuleNotFoundError: No module named 'colorama'
-ModuleNotFoundError: No module named 'rich'
 ```
 
 **Fix:**
 ```bash
 pip install requests --break-system-packages
 ```
-
-Skip the rest — use the custom upload.py script that only needs `requests`.
 
 ---
 
@@ -424,8 +456,11 @@ python3 ~/upload.py
 ### Every update
 
 ```bash
+# Bump version in all 3 places
 sed -i 's/version = "X.X.X"/version = "Y.Y.Y"/' ~/psiwatch/pyproject.toml
-sed -i "s/'version':'X.X.X'/'version':'Y.Y.Y'/" ~/upload.py
+sed -i 's/__version__ = "X.X.X"/__version__ = "Y.Y.Y"/' ~/psiwatch/src/psiwatch/__init__.py
+sed -i "s/VERSION = 'X.X.X'/VERSION = 'Y.Y.Y'/" ~/upload.py
+
 rm -rf ~/psiwatch/dist
 cd ~/psiwatch && python -m build
 python3 ~/upload.py
@@ -441,14 +476,9 @@ PYTHONPATH=src python3 tests/test_analyzer.py
 ### Locate files in Termux
 
 ```bash
-# files you create in Termux
 ls ~/
-
-# find any file
 find / -name "yourfile.csv" 2>/dev/null
-
-# after termux-setup-storage
-ls ~/storage/shared/Download/
+ls ~/storage/shared/Download/   # after termux-setup-storage
 ```
 
 ---
@@ -456,11 +486,12 @@ ls ~/storage/shared/Download/
 ## Key Lessons
 
 1. **twine doesn't work on Termux** — use a custom requests-based upload script
-2. **PyPI needs plain markdown** — no HTML tags in README or description won't show
-3. **Always bump version before uploading** — PyPI rejects same version twice
+2. **PyPI needs plain markdown** — no HTML tags in README
+3. **Bump version in 3 places** — pyproject.toml, `__init__.py`, upload.py
 4. **Always clean dist/ before rebuilding** — old files cause version conflicts
-5. **Storage permission in Termux is separate** — run `termux-setup-storage` and allow it in settings
+5. **Storage permission in Termux is separate** — run `termux-setup-storage` and allow in settings
 6. **Build everything in Termux home** (`~/`) — no storage permission issues
+7. **`psiwatch update` works on Termux** — uses `sys.executable` so it upgrades the right Python env
 
 ---
 
