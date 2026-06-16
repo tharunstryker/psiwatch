@@ -1,0 +1,720 @@
+
+=== TEST 1 — Terminal report ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(10 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:26
+══════════════════════════════════════════════════════════════
+
+  [!!] age  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.77 std devs (28.51 → 21.37)
+     → Std dev shifted by 44.2%
+     → PSI = 14.2069 (significant drift)
+     ┌ Mean:    28.51 → 21.37
+     ├ Std:     4.04 → 2.25
+     ├ PSI:     14.2069
+     ├ Min:     22.00 → 18.00
+     ├ P25:     25.00 → 19.00
+     ├ Median:  28.00 → 21.00
+     ├ P75:     32.00 → 23.00
+     └ Max:     35.00 → 25.00
+
+  [!!] city  [categorical]  — HIGH DRIFT
+     → New categories found: ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+     → Category share shifted: 'Delhi' 20.5% → 0.0%, 'Chennai' 17.2% → 0.0%, 'Hyderabad' 19.1% → 0.0%, 'Mumbai' 19.7% → 0.0%, 'Bangalore' 23.5% → 0.0%
+     → PSI = 24.4192
+     → Chi-square = 200769.0 (distribution mismatch)
+     ┌ PSI:         24.4192
+     ├ Chi-square:  200769.0000
+     └ New cats:    ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 3.44 std devs (718.21 → 580.86)
+     → Std dev shifted by 77.2% (39.93 → 70.77)
+     → PSI = 9.3049 (significant drift)
+     ┌ Mean:    718.21 → 580.86
+     ├ Std:     39.93 → 70.77
+     ├ PSI:     9.3049
+     ├ Min:     600.56 → 346.43
+     ├ P25:     689.83 → 532.01
+     ├ Median:  717.25 → 579.25
+     ├ P75:     744.22 → 628.60
+     └ Max:     833.19 → 833.81
+
+  [!!] debt_ratio  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.59 std devs (0.35 → 0.72)
+     → PSI = 17.4794 (significant drift)
+     ┌ Mean:    0.35 → 0.72
+     ├ Std:     0.15 → 0.13
+     ├ PSI:     17.4794
+     ├ Min:     0.10 → 0.50
+     ├ P25:     0.22 → 0.61
+     ├ Median:  0.35 → 0.73
+     ├ P75:     0.47 → 0.84
+     └ Max:     0.60 → 0.95
+
+  [!!] experience  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.14 std devs (5.06 → 1.47)
+     → Std dev shifted by 64.3% (3.16 → 1.13)
+     → PSI = 8.2453 (significant drift)
+     ┌ Mean:    5.06 → 1.47
+     ├ Std:     3.16 → 1.13
+     ├ PSI:     8.2453
+     ├ Min:     0.00 → 0.00
+     ├ P25:     2.00 → 0.00
+     ├ Median:  5.00 → 1.00
+     ├ P75:     8.00 → 3.00
+     └ Max:     10.00 → 3.00
+
+  [!!] grade  [categorical]  — HIGH DRIFT
+     → New categories found: ['D', 'F']
+     → Category share shifted: 'A' 33.2% → 0.0%, 'B' 31.0% → 0.0%
+     → PSI = 16.6108
+     → Chi-square = 221785.3116 (distribution mismatch)
+     ┌ PSI:         16.6108
+     ├ Chi-square:  221785.3116
+     └ New cats:    ['D', 'F']
+
+  [!!] loan_amount  [numeric]  — HIGH DRIFT
+     → Mean shifted by 7.99 std devs (298104.87 → 693076.19)
+     → Std dev shifted by 99.4% (49425.53 → 98542.83)
+     → PSI = 22.2273 (significant drift)
+     ┌ Mean:    298104.87 → 693076.19
+     ├ Std:     49425.53 → 98542.83
+     ├ PSI:     22.2273
+     ├ Min:     154604.14 → 388468.81
+     ├ P25:     264370.97 → 628025.39
+     ├ Median:  298537.49 → 695735.47
+     ├ P75:     333778.87 → 762158.54
+     └ Max:     460164.01 → 988290.42
+
+  [!!] loan_type  [categorical]  — HIGH DRIFT
+     → New categories found: ['BNPL', 'Crypto']
+     → Category share shifted: 'Personal' 33.5% → 0.0%
+     → PSI = 10.2727
+     → Chi-square = 116233.4041 (distribution mismatch)
+     ┌ PSI:         10.2727
+     ├ Chi-square:  116233.4041
+     └ New cats:    ['BNPL', 'Crypto']
+
+  [!!] salary  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.90 std devs (55262.38 → 31990.52)
+     → Std dev shifted by 46.2%
+     → PSI = 6.8279 (significant drift)
+     ┌ Mean:    55262.38 → 31990.52
+     ├ Std:     8012.45 → 11717.31
+     ├ PSI:     6.8279
+     ├ Min:     27732.83 → -12761.50
+     ├ P25:     49684.80 → 24185.14
+     ├ Median:  55624.15 → 32390.72
+     ├ P75:     60767.25 → 40082.85
+     └ Max:     83428.01 → 66832.03
+
+  [!!] status  [categorical]  — HIGH DRIFT
+     → New categories found: ['Defaulted', 'Frozen']
+     → Category share shifted: 'Closed' 35.2% → 0.0%, 'Pending' 33.0% → 0.0%
+     → PSI = 16.9436
+     → Chi-square = 212707.3852 (distribution mismatch)
+     ┌ PSI:         16.9436
+     ├ Chi-square:  212707.3852
+     └ New cats:    ['Defaulted', 'Frozen']
+
+──────────────────────────────────────────────────────────────
+  HIGH: 10   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+
+=== TEST 2 — HTML report ===
+Report saved → drift_report.html
+
+=== TEST 3 — JSON report ===
+Report saved → drift_report.json
+
+=== TEST 4 — Specific columns ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(10 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:27
+══════════════════════════════════════════════════════════════
+
+  [!!] city  [categorical]  — HIGH DRIFT
+     → New categories found: ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+     → Category share shifted: 'Delhi' 20.5% → 0.0%, 'Chennai' 17.2% → 0.0%, 'Hyderabad' 19.1% → 0.0%, 'Mumbai' 19.7% → 0.0%, 'Bangalore' 23.5% → 0.0%
+     → PSI = 24.4192
+     → Chi-square = 200769.0 (distribution mismatch)
+     ┌ PSI:         24.4192
+     ├ Chi-square:  200769.0000
+     └ New cats:    ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 3.44 std devs (718.21 → 580.86)
+     → Std dev shifted by 77.2% (39.93 → 70.77)
+     → PSI = 9.3049 (significant drift)
+     ┌ Mean:    718.21 → 580.86
+     ├ Std:     39.93 → 70.77
+     ├ PSI:     9.3049
+     ├ Min:     600.56 → 346.43
+     ├ P25:     689.83 → 532.01
+     ├ Median:  717.25 → 579.25
+     ├ P75:     744.22 → 628.60
+     └ Max:     833.19 → 833.81
+
+  [!!] salary  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.90 std devs (55262.38 → 31990.52)
+     → Std dev shifted by 46.2%
+     → PSI = 6.8279 (significant drift)
+     ┌ Mean:    55262.38 → 31990.52
+     ├ Std:     8012.45 → 11717.31
+     ├ PSI:     6.8279
+     ├ Min:     27732.83 → -12761.50
+     ├ P25:     49684.80 → 24185.14
+     ├ Median:  55624.15 → 32390.72
+     ├ P75:     60767.25 → 40082.85
+     └ Max:     83428.01 → 66832.03
+
+──────────────────────────────────────────────────────────────
+  HIGH: 3   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+
+=== TEST 5 — Custom PSI threshold ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(10 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:27
+══════════════════════════════════════════════════════════════
+
+  [!!] age  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.77 std devs (28.51 → 21.37)
+     → Std dev shifted by 44.2%
+     → PSI = 14.2069 (significant drift)
+     ┌ Mean:    28.51 → 21.37
+     ├ Std:     4.04 → 2.25
+     ├ PSI:     14.2069
+     ├ Min:     22.00 → 18.00
+     ├ P25:     25.00 → 19.00
+     ├ Median:  28.00 → 21.00
+     ├ P75:     32.00 → 23.00
+     └ Max:     35.00 → 25.00
+
+  [!!] city  [categorical]  — HIGH DRIFT
+     → New categories found: ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+     → Category share shifted: 'Delhi' 20.5% → 0.0%, 'Chennai' 17.2% → 0.0%, 'Hyderabad' 19.1% → 0.0%, 'Mumbai' 19.7% → 0.0%, 'Bangalore' 23.5% → 0.0%
+     → PSI = 24.4192
+     → Chi-square = 200769.0 (distribution mismatch)
+     ┌ PSI:         24.4192
+     ├ Chi-square:  200769.0000
+     └ New cats:    ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 3.44 std devs (718.21 → 580.86)
+     → Std dev shifted by 77.2% (39.93 → 70.77)
+     → PSI = 9.3049 (significant drift)
+     ┌ Mean:    718.21 → 580.86
+     ├ Std:     39.93 → 70.77
+     ├ PSI:     9.3049
+     ├ Min:     600.56 → 346.43
+     ├ P25:     689.83 → 532.01
+     ├ Median:  717.25 → 579.25
+     ├ P75:     744.22 → 628.60
+     └ Max:     833.19 → 833.81
+
+  [!!] debt_ratio  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.59 std devs (0.35 → 0.72)
+     → PSI = 17.4794 (significant drift)
+     ┌ Mean:    0.35 → 0.72
+     ├ Std:     0.15 → 0.13
+     ├ PSI:     17.4794
+     ├ Min:     0.10 → 0.50
+     ├ P25:     0.22 → 0.61
+     ├ Median:  0.35 → 0.73
+     ├ P75:     0.47 → 0.84
+     └ Max:     0.60 → 0.95
+
+  [!!] experience  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.14 std devs (5.06 → 1.47)
+     → Std dev shifted by 64.3% (3.16 → 1.13)
+     → PSI = 8.2453 (significant drift)
+     ┌ Mean:    5.06 → 1.47
+     ├ Std:     3.16 → 1.13
+     ├ PSI:     8.2453
+     ├ Min:     0.00 → 0.00
+     ├ P25:     2.00 → 0.00
+     ├ Median:  5.00 → 1.00
+     ├ P75:     8.00 → 3.00
+     └ Max:     10.00 → 3.00
+
+  [!!] grade  [categorical]  — HIGH DRIFT
+     → New categories found: ['D', 'F']
+     → Category share shifted: 'A' 33.2% → 0.0%, 'B' 31.0% → 0.0%
+     → PSI = 16.6108
+     → Chi-square = 221785.3116 (distribution mismatch)
+     ┌ PSI:         16.6108
+     ├ Chi-square:  221785.3116
+     └ New cats:    ['D', 'F']
+
+  [!!] loan_amount  [numeric]  — HIGH DRIFT
+     → Mean shifted by 7.99 std devs (298104.87 → 693076.19)
+     → Std dev shifted by 99.4% (49425.53 → 98542.83)
+     → PSI = 22.2273 (significant drift)
+     ┌ Mean:    298104.87 → 693076.19
+     ├ Std:     49425.53 → 98542.83
+     ├ PSI:     22.2273
+     ├ Min:     154604.14 → 388468.81
+     ├ P25:     264370.97 → 628025.39
+     ├ Median:  298537.49 → 695735.47
+     ├ P75:     333778.87 → 762158.54
+     └ Max:     460164.01 → 988290.42
+
+  [!!] loan_type  [categorical]  — HIGH DRIFT
+     → New categories found: ['BNPL', 'Crypto']
+     → Category share shifted: 'Personal' 33.5% → 0.0%
+     → PSI = 10.2727
+     → Chi-square = 116233.4041 (distribution mismatch)
+     ┌ PSI:         10.2727
+     ├ Chi-square:  116233.4041
+     └ New cats:    ['BNPL', 'Crypto']
+
+  [!!] salary  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.90 std devs (55262.38 → 31990.52)
+     → Std dev shifted by 46.2%
+     → PSI = 6.8279 (significant drift)
+     ┌ Mean:    55262.38 → 31990.52
+     ├ Std:     8012.45 → 11717.31
+     ├ PSI:     6.8279
+     ├ Min:     27732.83 → -12761.50
+     ├ P25:     49684.80 → 24185.14
+     ├ Median:  55624.15 → 32390.72
+     ├ P75:     60767.25 → 40082.85
+     └ Max:     83428.01 → 66832.03
+
+  [!!] status  [categorical]  — HIGH DRIFT
+     → New categories found: ['Defaulted', 'Frozen']
+     → Category share shifted: 'Closed' 35.2% → 0.0%, 'Pending' 33.0% → 0.0%
+     → PSI = 16.9436
+     → Chi-square = 212707.3852 (distribution mismatch)
+     ┌ PSI:         16.9436
+     ├ Chi-square:  212707.3852
+     └ New cats:    ['Defaulted', 'Frozen']
+
+──────────────────────────────────────────────────────────────
+  HIGH: 10   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+
+=== TEST 6 — analyze() raw ===
+Health score: 0/100
+  age             HIGH     PSI=14.2069
+  city            HIGH     PSI=24.4192
+  credit_score    HIGH     PSI=9.3049
+  debt_ratio      HIGH     PSI=17.4794
+  experience      HIGH     PSI=8.2453
+  grade           HIGH     PSI=16.6108
+  loan_amount     HIGH     PSI=22.2273
+  loan_type       HIGH     PSI=10.2727
+  salary          HIGH     PSI=6.8279
+  status          HIGH     PSI=16.9436
+
+=== TEST 7 — compare_columns ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  Generated: 2026-06-15 11:05:27
+══════════════════════════════════════════════════════════════
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 5.93 std devs (748.86 → 575.64)
+     → Std dev shifted by 47.7%
+     → PSI = 24.691 (significant drift)
+     ┌ Mean:    748.86 → 575.64
+     ├ Std:     29.19 → 43.12
+     ├ PSI:     24.6910
+     ├ Min:     700.00 → 500.00
+     ├ P25:     724.00 → 539.00
+     ├ Median:  747.00 → 576.00
+     ├ P75:     775.25 → 611.00
+     └ Max:     800.00 → 650.00
+
+──────────────────────────────────────────────────────────────
+  HIGH: 1   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+
+=== TEST 8 — fail_on_drift triggered ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(10 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:27
+══════════════════════════════════════════════════════════════
+
+  [!!] age  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.77 std devs (28.51 → 21.37)
+     → Std dev shifted by 44.2%
+     → PSI = 14.2069 (significant drift)
+     ┌ Mean:    28.51 → 21.37
+     ├ Std:     4.04 → 2.25
+     ├ PSI:     14.2069
+     ├ Min:     22.00 → 18.00
+     ├ P25:     25.00 → 19.00
+     ├ Median:  28.00 → 21.00
+     ├ P75:     32.00 → 23.00
+     └ Max:     35.00 → 25.00
+
+  [!!] city  [categorical]  — HIGH DRIFT
+     → New categories found: ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+     → Category share shifted: 'Delhi' 20.5% → 0.0%, 'Chennai' 17.2% → 0.0%, 'Hyderabad' 19.1% → 0.0%, 'Mumbai' 19.7% → 0.0%, 'Bangalore' 23.5% → 0.0%
+     → PSI = 24.4192
+     → Chi-square = 200769.0 (distribution mismatch)
+     ┌ PSI:         24.4192
+     ├ Chi-square:  200769.0000
+     └ New cats:    ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 3.44 std devs (718.21 → 580.86)
+     → Std dev shifted by 77.2% (39.93 → 70.77)
+     → PSI = 9.3049 (significant drift)
+     ┌ Mean:    718.21 → 580.86
+     ├ Std:     39.93 → 70.77
+     ├ PSI:     9.3049
+     ├ Min:     600.56 → 346.43
+     ├ P25:     689.83 → 532.01
+     ├ Median:  717.25 → 579.25
+     ├ P75:     744.22 → 628.60
+     └ Max:     833.19 → 833.81
+
+  [!!] debt_ratio  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.59 std devs (0.35 → 0.72)
+     → PSI = 17.4794 (significant drift)
+     ┌ Mean:    0.35 → 0.72
+     ├ Std:     0.15 → 0.13
+     ├ PSI:     17.4794
+     ├ Min:     0.10 → 0.50
+     ├ P25:     0.22 → 0.61
+     ├ Median:  0.35 → 0.73
+     ├ P75:     0.47 → 0.84
+     └ Max:     0.60 → 0.95
+
+  [!!] experience  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.14 std devs (5.06 → 1.47)
+     → Std dev shifted by 64.3% (3.16 → 1.13)
+     → PSI = 8.2453 (significant drift)
+     ┌ Mean:    5.06 → 1.47
+     ├ Std:     3.16 → 1.13
+     ├ PSI:     8.2453
+     ├ Min:     0.00 → 0.00
+     ├ P25:     2.00 → 0.00
+     ├ Median:  5.00 → 1.00
+     ├ P75:     8.00 → 3.00
+     └ Max:     10.00 → 3.00
+
+  [!!] grade  [categorical]  — HIGH DRIFT
+     → New categories found: ['D', 'F']
+     → Category share shifted: 'A' 33.2% → 0.0%, 'B' 31.0% → 0.0%
+     → PSI = 16.6108
+     → Chi-square = 221785.3116 (distribution mismatch)
+     ┌ PSI:         16.6108
+     ├ Chi-square:  221785.3116
+     └ New cats:    ['D', 'F']
+
+  [!!] loan_amount  [numeric]  — HIGH DRIFT
+     → Mean shifted by 7.99 std devs (298104.87 → 693076.19)
+     → Std dev shifted by 99.4% (49425.53 → 98542.83)
+     → PSI = 22.2273 (significant drift)
+     ┌ Mean:    298104.87 → 693076.19
+     ├ Std:     49425.53 → 98542.83
+     ├ PSI:     22.2273
+     ├ Min:     154604.14 → 388468.81
+     ├ P25:     264370.97 → 628025.39
+     ├ Median:  298537.49 → 695735.47
+     ├ P75:     333778.87 → 762158.54
+     └ Max:     460164.01 → 988290.42
+
+  [!!] loan_type  [categorical]  — HIGH DRIFT
+     → New categories found: ['BNPL', 'Crypto']
+     → Category share shifted: 'Personal' 33.5% → 0.0%
+     → PSI = 10.2727
+     → Chi-square = 116233.4041 (distribution mismatch)
+     ┌ PSI:         10.2727
+     ├ Chi-square:  116233.4041
+     └ New cats:    ['BNPL', 'Crypto']
+
+  [!!] salary  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.90 std devs (55262.38 → 31990.52)
+     → Std dev shifted by 46.2%
+     → PSI = 6.8279 (significant drift)
+     ┌ Mean:    55262.38 → 31990.52
+     ├ Std:     8012.45 → 11717.31
+     ├ PSI:     6.8279
+     ├ Min:     27732.83 → -12761.50
+     ├ P25:     49684.80 → 24185.14
+     ├ Median:  55624.15 → 32390.72
+     ├ P75:     60767.25 → 40082.85
+     └ Max:     83428.01 → 66832.03
+
+  [!!] status  [categorical]  — HIGH DRIFT
+     → New categories found: ['Defaulted', 'Frozen']
+     → Category share shifted: 'Closed' 35.2% → 0.0%, 'Pending' 33.0% → 0.0%
+     → PSI = 16.9436
+     → Chi-square = 212707.3852 (distribution mismatch)
+     ┌ PSI:         16.9436
+     ├ Chi-square:  212707.3852
+     └ New cats:    ['Defaulted', 'Frozen']
+
+──────────────────────────────────────────────────────────────
+  HIGH: 10   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+PASS — DriftDetected: Drift detected — health score: 0/100. HIGH columns: ['age', 'city', 'credit_score', 'debt_ratio', 'experience', 'grade', 'loan_amount', 'loan_type', 'salary', 'status']
+
+=== TEST 9 — fail_on_drift clean data ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(10 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:28
+══════════════════════════════════════════════════════════════
+
+  [OK] age  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    28.51 → 28.51
+     ├ Std:     4.04 → 4.04
+     ├ PSI:     0.0000
+     ├ Min:     22.00 → 22.00
+     ├ P25:     25.00 → 25.00
+     ├ Median:  28.00 → 28.00
+     ├ P75:     32.00 → 32.00
+     └ Max:     35.00 → 35.00
+
+  [OK] city  [categorical]  — STABLE
+     → No drift detected
+     ┌ PSI:         0.0000
+     ├ Chi-square:  0.0000
+     └ New cats:    None
+
+  [OK] credit_score  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    718.21 → 718.21
+     ├ Std:     39.93 → 39.93
+     ├ PSI:     0.0000
+     ├ Min:     600.56 → 600.56
+     ├ P25:     689.83 → 689.83
+     ├ Median:  717.25 → 717.25
+     ├ P75:     744.22 → 744.22
+     └ Max:     833.19 → 833.19
+
+  [OK] debt_ratio  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    0.35 → 0.35
+     ├ Std:     0.15 → 0.15
+     ├ PSI:     0.0000
+     ├ Min:     0.10 → 0.10
+     ├ P25:     0.22 → 0.22
+     ├ Median:  0.35 → 0.35
+     ├ P75:     0.47 → 0.47
+     └ Max:     0.60 → 0.60
+
+  [OK] experience  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    5.06 → 5.06
+     ├ Std:     3.16 → 3.16
+     ├ PSI:     0.0000
+     ├ Min:     0.00 → 0.00
+     ├ P25:     2.00 → 2.00
+     ├ Median:  5.00 → 5.00
+     ├ P75:     8.00 → 8.00
+     └ Max:     10.00 → 10.00
+
+  [OK] grade  [categorical]  — STABLE
+     → No drift detected
+     ┌ PSI:         0.0000
+     ├ Chi-square:  0.0000
+     └ New cats:    None
+
+  [OK] loan_amount  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    298104.87 → 298104.87
+     ├ Std:     49425.53 → 49425.53
+     ├ PSI:     0.0000
+     ├ Min:     154604.14 → 154604.14
+     ├ P25:     264370.97 → 264370.97
+     ├ Median:  298537.49 → 298537.49
+     ├ P75:     333778.87 → 333778.87
+     └ Max:     460164.01 → 460164.01
+
+  [OK] loan_type  [categorical]  — STABLE
+     → No drift detected
+     ┌ PSI:         0.0000
+     ├ Chi-square:  0.0000
+     └ New cats:    None
+
+  [OK] salary  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    55262.38 → 55262.38
+     ├ Std:     8012.45 → 8012.45
+     ├ PSI:     0.0000
+     ├ Min:     27732.83 → 27732.83
+     ├ P25:     49684.80 → 49684.80
+     ├ Median:  55624.15 → 55624.15
+     ├ P75:     60767.25 → 60767.25
+     └ Max:     83428.01 → 83428.01
+
+  [OK] status  [categorical]  — STABLE
+     → No drift detected
+     ┌ PSI:         0.0000
+     ├ Chi-square:  0.0000
+     └ New cats:    None
+
+──────────────────────────────────────────────────────────────
+  HIGH: 0   MEDIUM: 0   PASS: 10
+
+  [OK] Drift Health Score: 100/100  (Healthy)
+══════════════════════════════════════════════════════════════
+
+PASS — No exception on identical data
+
+=== TEST 10 — Missing column warning ===
+
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: dict(11 cols)  →  new: dict(10 cols)
+  Generated: 2026-06-15 11:05:28
+══════════════════════════════════════════════════════════════
+
+  [WARN]
+     ⚠  Columns only in baseline (skipped): ['old_feature']
+
+  [!!] age  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.77 std devs (28.51 → 21.37)
+     → Std dev shifted by 44.2%
+     → PSI = 14.2069 (significant drift)
+     ┌ Mean:    28.51 → 21.37
+     ├ Std:     4.04 → 2.25
+     ├ PSI:     14.2069
+     ├ Min:     22.00 → 18.00
+     ├ P25:     25.00 → 19.00
+     ├ Median:  28.00 → 21.00
+     ├ P75:     32.00 → 23.00
+     └ Max:     35.00 → 25.00
+
+  [!!] city  [categorical]  — HIGH DRIFT
+     → New categories found: ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+     → Category share shifted: 'Delhi' 20.5% → 0.0%, 'Chennai' 17.2% → 0.0%, 'Hyderabad' 19.1% → 0.0%, 'Mumbai' 19.7% → 0.0%, 'Bangalore' 23.5% → 0.0%
+     → PSI = 24.4192
+     → Chi-square = 200769.0 (distribution mismatch)
+     ┌ PSI:         24.4192
+     ├ Chi-square:  200769.0000
+     └ New cats:    ['Gurugram', 'Jaipur', 'Kochi', 'Noida', 'Pune']
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 3.44 std devs (718.21 → 580.86)
+     → Std dev shifted by 77.2% (39.93 → 70.77)
+     → PSI = 9.3049 (significant drift)
+     ┌ Mean:    718.21 → 580.86
+     ├ Std:     39.93 → 70.77
+     ├ PSI:     9.3049
+     ├ Min:     600.56 → 346.43
+     ├ P25:     689.83 → 532.01
+     ├ Median:  717.25 → 579.25
+     ├ P75:     744.22 → 628.60
+     └ Max:     833.19 → 833.81
+
+  [!!] debt_ratio  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.59 std devs (0.35 → 0.72)
+     → PSI = 17.4794 (significant drift)
+     ┌ Mean:    0.35 → 0.72
+     ├ Std:     0.15 → 0.13
+     ├ PSI:     17.4794
+     ├ Min:     0.10 → 0.50
+     ├ P25:     0.22 → 0.61
+     ├ Median:  0.35 → 0.73
+     ├ P75:     0.47 → 0.84
+     └ Max:     0.60 → 0.95
+
+  [!!] experience  [numeric]  — HIGH DRIFT
+     → Mean shifted by 1.14 std devs (5.06 → 1.47)
+     → Std dev shifted by 64.3% (3.16 → 1.13)
+     → PSI = 8.2453 (significant drift)
+     ┌ Mean:    5.06 → 1.47
+     ├ Std:     3.16 → 1.13
+     ├ PSI:     8.2453
+     ├ Min:     0.00 → 0.00
+     ├ P25:     2.00 → 0.00
+     ├ Median:  5.00 → 1.00
+     ├ P75:     8.00 → 3.00
+     └ Max:     10.00 → 3.00
+
+  [!!] grade  [categorical]  — HIGH DRIFT
+     → New categories found: ['D', 'F']
+     → Category share shifted: 'A' 33.2% → 0.0%, 'B' 31.0% → 0.0%
+     → PSI = 16.6108
+     → Chi-square = 221785.3116 (distribution mismatch)
+     ┌ PSI:         16.6108
+     ├ Chi-square:  221785.3116
+     └ New cats:    ['D', 'F']
+
+  [!!] loan_amount  [numeric]  — HIGH DRIFT
+     → Mean shifted by 7.99 std devs (298104.87 → 693076.19)
+     → Std dev shifted by 99.4% (49425.53 → 98542.83)
+     → PSI = 22.2273 (significant drift)
+     ┌ Mean:    298104.87 → 693076.19
+     ├ Std:     49425.53 → 98542.83
+     ├ PSI:     22.2273
+     ├ Min:     154604.14 → 388468.81
+     ├ P25:     264370.97 → 628025.39
+     ├ Median:  298537.49 → 695735.47
+     ├ P75:     333778.87 → 762158.54
+     └ Max:     460164.01 → 988290.42
+
+  [!!] loan_type  [categorical]  — HIGH DRIFT
+     → New categories found: ['BNPL', 'Crypto']
+     → Category share shifted: 'Personal' 33.5% → 0.0%
+     → PSI = 10.2727
+     → Chi-square = 116233.4041 (distribution mismatch)
+     ┌ PSI:         10.2727
+     ├ Chi-square:  116233.4041
+     └ New cats:    ['BNPL', 'Crypto']
+
+  [!!] salary  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.90 std devs (55262.38 → 31990.52)
+     → Std dev shifted by 46.2%
+     → PSI = 6.8279 (significant drift)
+     ┌ Mean:    55262.38 → 31990.52
+     ├ Std:     8012.45 → 11717.31
+     ├ PSI:     6.8279
+     ├ Min:     27732.83 → -12761.50
+     ├ P25:     49684.80 → 24185.14
+     ├ Median:  55624.15 → 32390.72
+     ├ P75:     60767.25 → 40082.85
+     └ Max:     83428.01 → 66832.03
+
+  [!!] status  [categorical]  — HIGH DRIFT
+     → New categories found: ['Defaulted', 'Frozen']
+     → Category share shifted: 'Closed' 35.2% → 0.0%, 'Pending' 33.0% → 0.0%
+     → PSI = 16.9436
+     → Chi-square = 212707.3852 (distribution mismatch)
+     ┌ PSI:         16.9436
+     ├ Chi-square:  212707.3852
+     └ New cats:    ['Defaulted', 'Frozen']
+
+──────────────────────────────────────────────────────────────
+  HIGH: 10   MEDIUM: 0   PASS: 0
+
+  [!!] Drift Health Score: 0/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+
+
+All tests done.

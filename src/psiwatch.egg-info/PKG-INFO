@@ -1,0 +1,511 @@
+Metadata-Version: 2.4
+Name: psiwatch
+Version: 0.10.0
+Summary: A zero-dependency Python library and CLI for detecting dataset drift in ML pipelines.
+Author-email: Tharun <neetibyaevra@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/tharunstryker/psiwatch
+Project-URL: Repository, https://github.com/tharunstryker/psiwatch
+Keywords: dataframe,pandas,data drift,machine learning,data science,monitoring,csv,statistics
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# psiwatch
+
+**Zero-dependency Python library for dataset drift detection in ML pipelines.**
+
+Detect covariate drift, distribution shift, and data quality degradation between two datasets — using PSI, Chi-Square, Mean Shift, and Standard Deviation analysis. Pure Python. No numpy. No scipy. No pandas required.
+
+![PyPI](https://img.shields.io/pypi/v/psiwatch)
+![Downloads](https://img.shields.io/pypi/dm/psiwatch)
+![License](https://img.shields.io/badge/license-MIT-7C3AED)
+![Python](https://img.shields.io/badge/python-3.8+-blue)
+![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-22c55e)
+
+---
+
+## The Problem
+
+You train a model on historical data. Weeks later, predictions go wrong — silently. No errors. No alerts.
+
+The cause is **data drift**. Production data no longer looks like training data:
+
+- Customer ages shifted
+- New cities or categories appeared
+- Salary distributions changed
+- Credit scores dropped
+
+Most teams discover this *after* the model has already failed.
+
+---
+
+## The Solution
+
+```bash
+pip install psiwatch
+psiwatch compare train.csv production.csv
+```
+
+```
+══════════════════════════════════════════════════════════════
+  PSIWATCH REPORT
+  baseline: train.csv  →  new: production.csv
+  Generated: 2026-06-14 09:00:00
+══════════════════════════════════════════════════════════════
+
+  [!!] credit_score  [numeric]  — HIGH DRIFT
+     → Mean shifted by 2.20 std devs (752.00 → 624.00)
+     → PSI = 11.1200 (significant drift)
+     ┌ Mean:    752.00 → 624.00
+     ├ Std:     48.00 → 71.00
+     ├ PSI:     11.1200
+     ├ Min:     600.00 → 420.00
+     ├ P25:     720.00 → 560.00
+     ├ Median:  750.00 → 620.00
+     ├ P75:     790.00 → 690.00
+     └ Max:     850.00 → 800.00
+
+  [!!] loan_type  [categorical]  — HIGH DRIFT
+     → New categories found: ['BNPL', 'Crypto']
+     → PSI = 4.1900
+     ┌ PSI:         4.1900
+     ├ Chi-square:  3.8200
+     └ New cats:    ['BNPL', 'Crypto']
+
+  [OK] customer_id  [categorical]  — STABLE
+     → No drift detected
+
+──────────────────────────────────────────────────────────────
+  HIGH: 2   MEDIUM: 0   PASS: 1
+
+  [!!] Drift Health Score: 11/100  (Significant Drift)
+══════════════════════════════════════════════════════════════
+```
+
+---
+
+## Why psiwatch?
+
+Most drift detection tools require heavy dependencies and are built for Jupyter notebooks — not pipelines or minimal environments.
+
+| Feature | psiwatch | evidently | alibi-detect |
+|---|---|---|---|
+| Dependencies | **Zero** | Heavy | Heavy |
+| Install size | **~15KB** | ~50MB+ | ~100MB+ |
+| Works on Termux/Android | **Yes** | No | No |
+| CLI tool | **Yes** | No | No |
+| CI/CD `--fail-on-drift` flag | **Yes** | No | No |
+| pandas DataFrame support | **Yes** | Yes | Yes |
+| Pure Python | **Yes** | No | No |
+| Auto update check | **Yes** | No | No |
+| HTML reports | **Yes** | Yes | No |
+
+---
+
+## Install
+
+```bash
+pip install psiwatch
+```
+
+Works on Windows, Mac, Linux, VPS, Google Colab, Jupyter, and Termux on Android.
+
+---
+
+## Quickstart
+
+```bash
+git clone https://github.com/tharunstryker/psiwatch
+cd psiwatch
+pip install -e .
+psiwatch compare samples/train.csv samples/new.csv
+```
+
+---
+
+## CLI
+
+```bash
+# Compare two CSV files
+psiwatch compare old.csv new.csv
+
+# Save as HTML report
+psiwatch compare old.csv new.csv --output report.html
+
+# Save as JSON for pipelines
+psiwatch compare old.csv new.csv --output report.json
+
+# Save as plain text
+psiwatch compare old.csv new.csv --output report.txt
+
+# Compare specific columns only
+psiwatch compare old.csv new.csv --columns age,score,city
+
+# Set custom PSI threshold
+psiwatch compare old.csv new.csv --psi-threshold 0.15
+
+# Fail with exit code 1 if drift detected (for CI/CD)
+psiwatch compare old.csv new.csv --fail-on-drift
+
+# Upgrade psiwatch to latest version
+psiwatch update
+
+# Show installed version
+psiwatch version
+```
+
+---
+
+## Python Library
+
+### CSV files
+
+```python
+import psiwatch
+
+psiwatch.compare("old.csv", "new.csv")
+psiwatch.compare("old.csv", "new.csv", output="report.html")
+psiwatch.compare("old.csv", "new.csv", columns=["age", "score"])
+```
+
+### pandas DataFrames
+
+```python
+import pandas as pd
+import psiwatch
+
+old_df = pd.read_csv("train.csv")
+new_df = pd.read_csv("production.csv")
+
+psiwatch.compare(old_df, new_df)
+psiwatch.compare(old_df, new_df, output="report.html")
+```
+
+pandas is **optional** — psiwatch works without it. Only imported when a DataFrame is passed.
+
+### Python dicts
+
+```python
+psiwatch.compare_data(
+    old={"age": [22, 23, 21], "city": ["Chennai", "Delhi", "Mumbai"]},
+    new={"age": [28, 30, 29], "city": ["Chennai", "Bangalore", "Hyderabad"]}
+)
+```
+
+### List of dicts (JSON records)
+
+```python
+old_records = [{"age": 22, "city": "Chennai"}, {"age": 23, "city": "Delhi"}]
+new_records = [{"age": 28, "city": "Mumbai"}, {"age": 30, "city": "Pune"}]
+
+psiwatch.compare(old_records, new_records)
+```
+
+### Single list (one column)
+
+```python
+psiwatch.compare_columns([22, 23, 21], [28, 30, 29], name="age")
+```
+
+### Raw results (no print)
+
+```python
+result = psiwatch.analyze("old.csv", "new.csv")
+
+print(result["health_score"])         # 0-100
+
+for col, data in result["columns"].items():
+    print(col, data["severity"])      # HIGH / MEDIUM / PASS
+    print(col, data["metrics"])       # PSI, mean, std, chi-square, percentiles
+    print(col, data.get("warnings"))  # mixed-type or schema warnings
+```
+
+---
+
+## CI/CD — Fail on Drift
+
+Block deployments when data drifts. psiwatch exits with code 1 if `health_score < 80`.
+
+### GitHub Actions
+
+```yaml
+- name: Check data drift
+  run: psiwatch compare train.csv production.csv --fail-on-drift
+```
+
+### Python
+
+```python
+import psiwatch
+from psiwatch import DriftDetected
+
+try:
+    psiwatch.compare("train.csv", "new.csv", fail_on_drift=True)
+except DriftDetected as e:
+    print(f"Drift detected: {e}")
+    # send alert, stop deploy, log to monitoring
+```
+
+---
+
+## Custom Thresholds
+
+```python
+# Shortcut — set HIGH boundary, medium auto-scales to 40%
+psiwatch.compare("old.csv", "new.csv", psi_threshold=0.15)
+
+# Full control
+psiwatch.compare("old.csv", "new.csv", thresholds={
+    "psi_medium": 0.05,
+    "psi_high": 0.15,
+    "mean_shift_medium": 0.2,
+    "mean_shift_high": 0.5,
+    "std_shift_medium": 0.2,
+    "std_shift_high": 0.5,
+    "category_share_shift": 0.10,
+    "chi_square_medium": 0.5,
+})
+```
+
+---
+
+## Auto Update Check
+
+psiwatch checks PyPI for newer versions on every run. Check is cached for 24 hours — won't spam on every import.
+
+```
+  ╔══════════════════════════════════════════════════╗
+  ║  psiwatch update available: 0.9.0 → 0.10.0      ║
+  ║  Run: pip install --upgrade psiwatch             ║
+  ╚══════════════════════════════════════════════════╝
+```
+
+To suppress in production/CI:
+
+```python
+import psiwatch
+psiwatch.compare("old.csv", "new.csv", silent_update=True)
+```
+
+---
+
+## Dataset Warnings
+
+psiwatch warns instead of failing silently when your datasets have schema mismatches.
+
+```
+  [WARN]
+     ⚠  Columns only in baseline (skipped): ['old_feature', 'legacy_col']
+     ⚠  Columns only in new data (skipped): ['new_feature']
+     ⚠  Column 'income' is 72% numeric — treated as categorical. Cast to float if intended as numeric.
+```
+
+---
+
+## Output Formats
+
+| Format | Command | Use case |
+|---|---|---|
+| Terminal | default | Quick checks during development |
+| HTML | `--output report.html` | Sharing with team, presentations |
+| JSON | `--output report.json` | CI/CD pipelines, automation, dashboards |
+| TXT | `--output report.txt` | Server logs, plain text reports |
+
+All outputs include: timestamp, source file names, per-column metrics, health score.
+
+---
+
+## Input Modes
+
+| Input | Works with |
+|---|---|
+| CSV file path `"old.csv"` | `compare()` |
+| pandas DataFrame | `compare()`, `compare_data()` |
+| Python dict `{"col": [values]}` | `compare()`, `compare_data()` |
+| List of dicts `[{"col": val}, ...]` | `compare()` |
+| Plain Python list | `compare_columns()` |
+
+---
+
+## Detection Methods
+
+### Numeric columns — age, score, salary, credit score
+
+| Method | What it detects |
+|---|---|
+| Mean Shift | Average moved significantly |
+| Std Deviation Shift | Spread of values changed |
+| PSI | Overall distribution shape changed |
+| Percentiles | Min, P25, Median, P75, Max compared |
+
+### Categorical columns — city, grade, status, loan type
+
+| Method | What it detects |
+|---|---|
+| New Category Detection | Values that never existed in training data |
+| Frequency Distribution Shift | Category proportions changed |
+| PSI | Overall distribution changed |
+| Chi-Square | Frequency mismatch is statistically significant |
+
+---
+
+## PSI Reference
+
+PSI (Population Stability Index) is the industry standard metric for monitoring production data drift.
+
+| PSI | Status | Action |
+|---|---|---|
+| < 0.10 | Stable | Model is fine |
+| 0.10 – 0.25 | Moderate Drift | Monitor closely, investigate |
+| > 0.25 | Significant Drift | Retrain your model |
+
+---
+
+## Drift Health Score
+
+Every report includes a single 0–100 score.
+
+| Score | Status | Meaning |
+|---|---|---|
+| 80–100 | Stable | Data is stable, model likely fine |
+| 50–79 | Moderate Drift | Some columns changed — investigate |
+| 0–49 | Significant Drift | Major shifts — retrain |
+
+**Important:** if *any* column is HIGH severity, the score is hard-capped at ≤50 — one bad column in a 20-column dataset does not average away into "Healthy".
+
+---
+
+## Real World Example — Banking Data
+
+```bash
+psiwatch compare bank_2023.csv bank_2026.csv
+```
+
+What psiwatch caught:
+
+- Credit scores dropped from 752 → 624 — riskier customers
+- Salaries dropped from 63k → 45k — lower income applicants
+- Loan amounts jumped from 500k → 800k — borrowing more, earning less
+- New loan types appeared — `BNPL`, `Crypto` (never in training data)
+- New statuses appeared — `Defaulted`, `Frozen`
+- Branches completely changed — 5 old cities gone, 5 new cities added
+
+**Health Score: 11/100** — a model trained on 2023 data would be completely blind to all of this.
+
+---
+
+## Project Structure
+
+```
+psiwatch/
+├── src/psiwatch/
+│   ├── __init__.py      ← public API + DriftDetected exception
+│   ├── loader.py        ← CSV, dict, list, DataFrame input
+│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles
+│   ├── reporter.py      ← terminal, HTML, JSON, TXT output
+│   ├── updater.py       ← PyPI version check (24h cached)
+│   └── cli.py           ← psiwatch CLI
+├── samples/
+│   ├── train.csv        ← example baseline dataset
+│   └── new.csv          ← example drifted dataset
+├── tests/
+│   └── test_analyzer.py
+├── pyproject.toml
+└── README.md
+```
+
+---
+
+## Run Tests
+
+```bash
+python tests/test_analyzer.py
+```
+
+```
+Running psiwatch tests...
+
+PASS numeric high drift detected
+PASS numeric no drift — PASS
+PASS categorical new category detected
+PASS categorical no drift — PASS
+PASS full analyze — health score: 0/100
+PASS health score clean data: 100/100
+PASS column filter works
+
+All tests passed.
+```
+
+---
+
+## Zero Dependencies
+
+psiwatch uses only Python's standard library:
+
+| Module | Used for |
+|---|---|
+| `csv` | File reading |
+| `math` | Statistical calculations |
+| `json` | JSON output + version cache |
+| `os` | File operations |
+| `argparse` | CLI interface |
+| `urllib` | PyPI version check |
+| `datetime` | Report timestamps |
+
+No pip conflicts. No install failures. If Python runs, psiwatch runs.
+
+---
+
+## Changelog
+
+### v0.10.0
+- pandas DataFrame support — pass DataFrames directly to `compare()`
+- List of dicts input — `[{"age": 22, "city": "Chennai"}, ...]` supported
+- `--fail-on-drift` CLI flag — exit code 1 when drift detected, for CI/CD pipelines
+- `DriftDetected` exception — catch in Python for custom alerting logic
+- `updater.py` — auto version check against PyPI, 24h cached, silent in CI
+- Health score hard-cap — any HIGH column caps score at ≤50 (was averaging, now accurate)
+- Missing column warnings — schema mismatches shown explicitly, not silently dropped
+- Mixed-type column warnings — columns 50-80% numeric now warn before type decision
+- Timestamp + source in all reports — HTML, TXT, terminal all show when and what was compared
+- Chi-square O(n²) → O(n) — pre-computed count dicts, fast on large datasets
+
+### v0.2.0
+- Custom threshold configuration (`psi_threshold`, `thresholds` dict)
+- Column filtering (`columns` parameter)
+- HTML report output
+- `analyze()` function for programmatic access
+
+### v0.1.0
+- Initial release
+- CSV comparison via CLI and Python API
+- PSI, Mean Shift, Std Shift, Chi-Square, New Category detection
+- Terminal, JSON, TXT output
+- Zero dependencies
+
+---
+
+## Related Tools
+
+If you need heavier drift detection with statistical testing frameworks:
+
+- [evidently](https://github.com/evidentlyai/evidently) — full ML monitoring platform
+- [alibi-detect](https://github.com/SeldonIO/alibi-detect) — advanced drift detection with deep learning support
+- [scipy.stats](https://docs.scipy.org/doc/scipy/reference/stats.html) — statistical tests
+
+Use `psiwatch` when you need something lightweight, fast, and dependency-free.
+
+---
+
+## License
+
+MIT © 2026 Tharun · [Naeris](https://naeris.vercel.app)
+
+Built entirely on Android using Termux. No laptop. No PC. No IDE.
