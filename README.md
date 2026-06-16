@@ -638,7 +638,7 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 
 ## Changelog
 
-### v0.12.0
+### v0.11.0
 - `psiwatch trend` — track drift across a sequence of datasets over time; detect worsening columns
 - `psiwatch watch` — poll a directory for new CSV files and check each against a lock baseline; persists seen-file state across `--once` runs (cron/CI-safe)
 - `--webhook URL` — send Slack, Discord, or generic JSON alert on any drift detection (`compare`, `check`, `summary`, `watch`)
@@ -650,7 +650,7 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 - Webhook skips automatically when health score ≥ 80 (drift-only alerting by default)
 - `--once` flag on `watch` — single-pass mode for cron jobs and CI pipelines
 
-### v0.11.0
+### v0.10.1
 - `result["summary"]` in `analyze()` — `high_count`, `medium_count`, `pass_count`, `drifted_columns`, `stable_columns`, `total_columns`
 - Sample size warning — fires when baseline and new data differ by more than 10x (PSI unreliable at extreme size ratios)
 - `--ignore-columns / -x` flag — skip columns by name (IDs, timestamps, row numbers)
