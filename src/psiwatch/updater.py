@@ -1,8 +1,10 @@
 """
 updater.py — Version check + self-update for psiwatch.
 
-- Auto-checks PyPI on every run (24h cached, never blocks)
-- `psiwatch update` command runs pip upgrade directly from terminal
+- On every run: silently checks PyPI for a newer version (cached 24h).
+- Shows a clean banner if an update is available.
+- `psiwatch update` command: runs pip install --upgrade psiwatch in-process.
+- Silent in CI (PSIWATCH_SILENT=1 or CI=true env vars).
 """
 
 import json
@@ -18,7 +20,17 @@ CACHE_FILE = os.path.join(os.path.expanduser("~"), ".psiwatch_version_cache")
 CACHE_TTL = 86400  # 24 hours
 
 
+def _is_ci():
+    """Detect CI/CD environment — suppress banners there."""
+    return (
+        os.environ.get("CI", "").lower() in ("true", "1", "yes")
+        or os.environ.get("PSIWATCH_SILENT", "").lower() in ("true", "1", "yes")
+        or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    )
+
+
 def _get_latest_from_pypi():
+    """Fetch latest version string from PyPI. Returns None on any error."""
     try:
         req = urllib.request.Request(
             PYPI_URL,
@@ -55,11 +67,34 @@ def _parse_version(v):
         return (0, 0, 0)
 
 
+def _banner(current, latest):
+    """Render a fixed-width update banner. Always 52 chars wide inside the box."""
+    line = f"  psiwatch update available: {current} → {latest}"
+    pad = 52 - len(line)
+    cmd_line = "  Run: pip install --upgrade psiwatch"
+    cmd_pad = 52 - len(cmd_line)
+    print(
+        f"\n  ╔{'═' * 52}╗\n"
+        f"  ║{line}{' ' * pad}║\n"
+        f"  ║{cmd_line}{' ' * cmd_pad}║\n"
+        f"  ╚{'═' * 52}╝\n"
+    )
+
+
 def check_for_update(current_version, silent=False):
     """
-    Check PyPI for newer version. 24h cached.
-    Returns (latest_version, update_available).
+    Check PyPI for a newer version. Uses 24h disk cache.
+
+    Args:
+        current_version: str — e.g. "0.10.0"
+        silent: suppress banner even if update available
+
+    Returns:
+        (latest: str | None, update_available: bool)
     """
+    if silent or _is_ci():
+        return None, False
+
     cached_latest, ts = _read_cache()
     now = time.time()
 
@@ -75,45 +110,27 @@ def check_for_update(current_version, silent=False):
 
     update_available = _parse_version(latest) > _parse_version(current_version)
 
-    if update_available and not silent:
-        print(
-            f"\n  ╔══════════════════════════════════════════════════════╗\n"
-            f"  ║  psiwatch update available: {current_version} → {latest:<8}            ║\n"
-            f"  ║  Run: psiwatch update  (or pip install -U psiwatch)  ║\n"
-            f"  ╚══════════════════════════════════════════════════════╝\n"
-        )
+    if update_available:
+        _banner(current_version, latest)
 
     return latest, update_available
 
 
-def run_self_update():
+def do_upgrade():
     """
-    Run `pip install --upgrade psiwatch` from within the CLI.
-    Shows live pip output. Returns True on success.
+    Run `pip install --upgrade psiwatch` in a subprocess.
+    Called by `psiwatch update` CLI command.
+    Returns exit code.
     """
-    print("\n  Checking for latest version...")
-    latest = _get_latest_from_pypi()
-    if not latest:
-        print("  Could not reach PyPI. Check your internet connection.")
-        return False
-
-    from . import __version__
-    if _parse_version(latest) <= _parse_version(__version__):
-        print(f"  Already up to date — psiwatch {__version__}")
-        return True
-
-    print(f"  Updating psiwatch {__version__} → {latest}...\n")
-
+    print("  Upgrading psiwatch...\n")
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "--upgrade", "psiwatch"],
-        text=True
+        check=False
     )
-
     if result.returncode == 0:
-        # Bust the cache so next run shows correct version
-        _write_cache(latest)
-        print(f"\n  psiwatch updated to {latest}. Restart your terminal to use it.")
-        return True
+        print("\n  psiwatch upgraded successfully.")
+        print("  Run `psiwatch version` to confirm.")
     else:
-        print("\n  Update failed. Try manually: pip install --upgrade psiwatch")
-        return False
+        print("\n  Upgrade failed. Try manually:")
+        print("  pip install --upgrade psiwatch")
+    return result.returncode

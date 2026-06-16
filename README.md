@@ -42,9 +42,9 @@ psiwatch compare train.csv production.csv
 ══════════════════════════════════════════════════════════════
 
   [!!] credit_score  [numeric]  — HIGH DRIFT
-     → Mean shifted by 2.20 std devs (752.00 → 624.00)
+     → Mean shifted by 2.20 std devs (752.00 → 624.00)  ↓
      → PSI = 11.1200 (significant drift)
-     ┌ Mean:    752.00 → 624.00
+     ┌ Mean:    752.00 → 624.00  ↓
      ├ Std:     48.00 → 71.00
      ├ PSI:     11.1200
      ├ Min:     600.00 → 420.00
@@ -55,10 +55,12 @@ psiwatch compare train.csv production.csv
 
   [!!] loan_type  [categorical]  — HIGH DRIFT
      → New categories found: ['BNPL', 'Crypto']
+     → Categories vanished from new data: ['Personal']
      → PSI = 4.1900
-     ┌ PSI:         4.1900
-     ├ Chi-square:  3.8200
-     └ New cats:    ['BNPL', 'Crypto']
+     ┌ PSI:          4.1900
+     ├ Chi-square:   3.8200
+     ├ New cats:     ['BNPL', 'Crypto']
+     └ Vanished:     ['Personal']
 
   [OK] customer_id  [categorical]  — STABLE
      → No drift detected
@@ -83,10 +85,13 @@ Most drift detection tools require heavy dependencies and are built for Jupyter 
 | Works on Termux/Android | **Yes** | No | No |
 | CLI tool | **Yes** | No | No |
 | CI/CD `--fail-on-drift` flag | **Yes** | No | No |
+| Self-upgrade via CLI | **Yes** | No | No |
 | pandas DataFrame support | **Yes** | Yes | Yes |
 | Pure Python | **Yes** | No | No |
 | Auto update check | **Yes** | No | No |
 | HTML reports | **Yes** | Yes | No |
+| Trend direction (↑↓→) | **Yes** | No | No |
+| Vanished category detection | **Yes** | No | No |
 
 ---
 
@@ -97,6 +102,16 @@ pip install psiwatch
 ```
 
 Works on Windows, Mac, Linux, VPS, Google Colab, Jupyter, and Termux on Android.
+
+### Upgrade
+
+```bash
+# via CLI (easiest)
+psiwatch update
+
+# or standard pip
+pip install --upgrade psiwatch
+```
 
 ---
 
@@ -129,13 +144,49 @@ psiwatch compare old.csv new.csv --output report.txt
 # Compare specific columns only
 psiwatch compare old.csv new.csv --columns age,score,city
 
+# Skip columns (IDs, timestamps, row numbers)
+psiwatch compare old.csv new.csv --ignore-columns id,timestamp,row_num
+
 # Set custom PSI threshold
 psiwatch compare old.csv new.csv --psi-threshold 0.15
 
 # Fail with exit code 1 if drift detected (for CI/CD)
 psiwatch compare old.csv new.csv --fail-on-drift
 
-# Upgrade psiwatch to latest version
+# Suppress update banner (useful in scripts)
+psiwatch compare old.csv new.csv --silent
+
+# Send a Slack/Discord/webhook alert on drift
+psiwatch compare old.csv new.csv --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
+
+# Use a config file instead of passing flags every time
+psiwatch compare old.csv new.csv --config myconfig.toml
+
+# One-line health summary (no full report — ideal for shell scripts)
+psiwatch summary train.csv new.csv
+
+# Lock training data as a statistical baseline
+psiwatch lock train.csv                          # creates psiwatch.lock.json
+psiwatch lock train.csv --output model.lock.json
+
+# Check new data against the lock
+psiwatch check new.csv
+psiwatch check new.csv --lock model.lock.json --fail-on-drift
+
+# Show what's stored in a lock file
+psiwatch lock-info
+
+# Track drift across a sequence of datasets over time
+psiwatch trend day1.csv day2.csv day3.csv day4.csv
+psiwatch trend day1.csv day2.csv day3.csv --baseline first
+psiwatch trend day1.csv day2.csv day3.csv --output trend.json
+
+# Watch a directory and check new CSV files as they arrive
+psiwatch watch data/
+psiwatch watch data/ --once               # one pass, exit — good for cron and CI
+psiwatch watch data/ --webhook https://hooks.slack.com/services/XXX --fail-on-drift
+
+# Upgrade to latest version
 psiwatch update
 
 # Show installed version
@@ -204,7 +255,7 @@ print(result["health_score"])         # 0-100
 
 for col, data in result["columns"].items():
     print(col, data["severity"])      # HIGH / MEDIUM / PASS
-    print(col, data["metrics"])       # PSI, mean, std, chi-square, percentiles
+    print(col, data["metrics"])       # PSI, mean, std, chi-square, percentiles, trend_direction
     print(col, data.get("warnings"))  # mixed-type or schema warnings
 ```
 
@@ -236,6 +287,16 @@ except DriftDetected as e:
 
 ---
 
+## Self-Upgrade
+
+```bash
+psiwatch update
+```
+
+Runs `pip install --upgrade psiwatch` under the hood — same Python environment, no extra steps. Works on Termux too.
+
+---
+
 ## Custom Thresholds
 
 ```python
@@ -259,16 +320,16 @@ psiwatch.compare("old.csv", "new.csv", thresholds={
 
 ## Auto Update Check
 
-psiwatch checks PyPI for newer versions on every run. Check is cached for 24 hours — won't spam on every import.
+psiwatch checks PyPI for newer versions on every run. Check is cached for 24 hours — won't spam on every import. Automatically silent in CI environments (`CI=true`, `GITHUB_ACTIONS=true`, `PSIWATCH_SILENT=1`).
 
 ```
-  ╔══════════════════════════════════════════════════╗
-  ║  psiwatch update available: 0.9.0 → 0.10.0      ║
-  ║  Run: pip install --upgrade psiwatch             ║
-  ╚══════════════════════════════════════════════════╝
+  ╔════════════════════════════════════════════════════╗
+  ║  psiwatch update available: 0.9.0 → 0.10.0        ║
+  ║  Run: pip install --upgrade psiwatch               ║
+  ╚════════════════════════════════════════════════════╝
 ```
 
-To suppress in production/CI:
+To suppress manually:
 
 ```python
 import psiwatch
@@ -287,6 +348,125 @@ psiwatch warns instead of failing silently when your datasets have schema mismat
      ⚠  Columns only in new data (skipped): ['new_feature']
      ⚠  Column 'income' is 72% numeric — treated as categorical. Cast to float if intended as numeric.
 ```
+
+---
+
+## Trend Direction
+
+Numeric columns include a trend direction — which way the mean moved:
+
+| Symbol | Meaning |
+|---|---|
+| ↑ | Mean increased in new data |
+| ↓ | Mean decreased in new data |
+| → | Mean stable |
+
+Available in terminal output, HTML report, and in `result["metrics"]["trend_direction"]`.
+
+---
+
+## Vanished Category Detection
+
+Categorical columns now detect categories that existed in the baseline but are completely absent from new data — not just new categories appearing.
+
+```
+  → Categories vanished from new data: ['Personal', 'Auto']
+```
+
+---
+
+## Trend Analysis
+
+Track how your data drifts across a sequence of files over time.
+
+```bash
+psiwatch trend monday.csv tuesday.csv wednesday.csv thursday.csv
+psiwatch trend day1.csv day2.csv day3.csv --baseline first --output trend.json
+```
+
+`--baseline previous` (default) compares each file to the one before it. `--baseline first` compares every file back to the first (cumulative drift from training). The report shows health score per step, per-column severity and PSI over time, and flags any column that steadily worsened across the sequence.
+
+```python
+from psiwatch import analyze_trend
+
+result = analyze_trend(["day1.csv", "day2.csv", "day3.csv"])
+print(result["overall_health_history"])   # [97, 68, 21]
+print(result["worsening_columns"])        # ["age"]
+```
+
+---
+
+## Watch Mode
+
+Poll a directory for new CSV files and check each one against a baseline lock as it arrives.
+
+```bash
+psiwatch lock train.csv
+psiwatch watch data/ --webhook https://hooks.slack.com/services/XXX
+```
+
+`--once` is designed for cron jobs and CI. Checks current directory contents and exits. psiwatch persists which files it has already checked (mtime-based, stored in `<lock>.seen.json`), so repeated runs only process new or modified files.
+
+```bash
+# In a cron job or CI step:
+psiwatch watch data/ --once --fail-on-drift
+```
+
+```python
+from psiwatch import watch_directory
+
+result = watch_directory("data/", once=True)
+print(result["drifted_files"])
+```
+
+---
+
+## Webhook Alerts
+
+Send a drift notification to Slack, Discord, or any JSON endpoint when drift is detected. The alert is skipped automatically when health score >= 80.
+
+```bash
+psiwatch compare train.csv new.csv --webhook https://hooks.slack.com/services/T/B/xxx
+psiwatch check new.csv --webhook https://discord.com/api/webhooks/123/abc
+psiwatch watch data/ --once --webhook https://example.com/psiwatch-alert
+```
+
+Format auto-detected from URL host: Slack → `{"text": "..."}`, Discord → `{"content": "..."}`, anything else → full JSON payload with `health_score`, `summary`, `message`.
+
+```python
+from psiwatch import compare, send_webhook
+
+result = compare("train.csv", "new.csv")
+send_webhook("https://hooks.slack.com/services/XXX/YYY/ZZZ", result)
+```
+
+---
+
+## Config File
+
+Store default settings in `psiwatch.toml` or `.psiwatchrc` (JSON) in your project directory. CLI flags always win over the config file.
+
+**`psiwatch.toml`:**
+```toml
+psi_threshold = 0.2
+ignore_columns = ["id", "timestamp"]
+fail_on_drift = true
+webhook = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+
+[thresholds]
+mean_shift_high = 0.6
+```
+
+**`.psiwatchrc` (JSON):**
+```json
+{
+  "psi_threshold": 0.2,
+  "ignore_columns": ["id", "timestamp"],
+  "fail_on_drift": true
+}
+```
+
+psiwatch auto-detects these files in the current directory. Use `--config path/to/config.toml` for a different path.
 
 ---
 
@@ -325,12 +505,14 @@ All outputs include: timestamp, source file names, per-column metrics, health sc
 | Std Deviation Shift | Spread of values changed |
 | PSI | Overall distribution shape changed |
 | Percentiles | Min, P25, Median, P75, Max compared |
+| Trend Direction | Which way the mean moved (↑ ↓ →) |
 
 ### Categorical columns — city, grade, status, loan type
 
 | Method | What it detects |
 |---|---|
 | New Category Detection | Values that never existed in training data |
+| Vanished Category Detection | Values gone from new data |
 | Frequency Distribution Shift | Category proportions changed |
 | PSI | Overall distribution changed |
 | Chi-Square | Frequency mismatch is statistically significant |
@@ -371,10 +553,11 @@ psiwatch compare bank_2023.csv bank_2026.csv
 
 What psiwatch caught:
 
-- Credit scores dropped from 752 → 624 — riskier customers
-- Salaries dropped from 63k → 45k — lower income applicants
-- Loan amounts jumped from 500k → 800k — borrowing more, earning less
+- Credit scores dropped from 752 → 624 — riskier customers ↓
+- Salaries dropped from 63k → 45k — lower income applicants ↓
+- Loan amounts jumped from 500k → 800k — borrowing more, earning less ↑
 - New loan types appeared — `BNPL`, `Crypto` (never in training data)
+- Categories vanished — `Personal`, `Auto` no longer in new data
 - New statuses appeared — `Defaulted`, `Frozen`
 - Branches completely changed — 5 old cities gone, 5 new cities added
 
@@ -389,9 +572,14 @@ psiwatch/
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
 │   ├── loader.py        ← CSV, dict, list, DataFrame input
-│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles
+│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output
-│   ├── updater.py       ← PyPI version check (24h cached)
+│   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade
+│   ├── locker.py        ← baseline locking (lock / check / lock-info)
+│   ├── trend.py         ← multi-file drift trend analysis
+│   ├── watcher.py       ← directory polling with mtime-based state
+│   ├── webhook.py       ← Slack/Discord/generic webhook alerts
+│   ├── config.py        ← psiwatch.toml / .psiwatchrc config loader
 │   └── cli.py           ← psiwatch CLI
 ├── samples/
 │   ├── train.csv        ← example baseline dataset
@@ -407,7 +595,7 @@ psiwatch/
 ## Run Tests
 
 ```bash
-python tests/test_analyzer.py
+PYTHONPATH=src python3 tests/test_analyzer.py
 ```
 
 ```
@@ -420,6 +608,9 @@ PASS categorical no drift — PASS
 PASS full analyze — health score: 0/100
 PASS health score clean data: 100/100
 PASS column filter works
+PASS list of dicts input works
+PASS missing column warning fires
+PASS health score hard cap: HIGH column in large dataset → 50/100
 
 All tests passed.
 ```
@@ -438,6 +629,7 @@ psiwatch uses only Python's standard library:
 | `os` | File operations |
 | `argparse` | CLI interface |
 | `urllib` | PyPI version check |
+| `subprocess` | Self-upgrade (`psiwatch update`) |
 | `datetime` | Report timestamps |
 
 No pip conflicts. No install failures. If Python runs, psiwatch runs.
@@ -446,17 +638,48 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 
 ## Changelog
 
+### v0.12.0
+- `psiwatch trend` — track drift across a sequence of datasets over time; detect worsening columns
+- `psiwatch watch` — poll a directory for new CSV files and check each against a lock baseline; persists seen-file state across `--once` runs (cron/CI-safe)
+- `--webhook URL` — send Slack, Discord, or generic JSON alert on any drift detection (`compare`, `check`, `summary`, `watch`)
+- Config file support — drop a `psiwatch.toml` or `.psiwatchrc` (JSON) in your project directory to set default thresholds, columns, webhook, etc.; CLI flags always override
+- `analyze_trend()` Python API — full programmatic access to trend result dict including `worsening_columns` and `column_history`
+- `watch_directory()` Python API — embed directory watching in your own scripts
+- `send_webhook()` Python API — post drift alerts to any endpoint from Python
+- `load_config()` Python API — load and apply config files programmatically
+- Webhook skips automatically when health score ≥ 80 (drift-only alerting by default)
+- `--once` flag on `watch` — single-pass mode for cron jobs and CI pipelines
+
+### v0.11.0
+- `result["summary"]` in `analyze()` — `high_count`, `medium_count`, `pass_count`, `drifted_columns`, `stable_columns`, `total_columns`
+- Sample size warning — fires when baseline and new data differ by more than 10x (PSI unreliable at extreme size ratios)
+- `--ignore-columns / -x` flag — skip columns by name (IDs, timestamps, row numbers)
+- `psiwatch summary` command — one-line health score for shell scripts without a full report
+- `psiwatch lock` / `check` / `lock-info` — baseline locking: save a statistical fingerprint of training data, ship it with your model, check against it in CI without the original CSV
+
 ### v0.10.0
+- `psiwatch update` CLI command — self-upgrade without leaving the terminal
+- Trend direction (↑ ↓ →) — numeric columns now show which way the mean moved
+- Vanished category detection — categories missing from new data flagged explicitly
+- Version banner fixed — fixed-width box, never misaligns on any version string length
+- CI detection — banner auto-suppressed when `CI=true` or `GITHUB_ACTIONS=true`
+- `--silent` CLI flag — suppress update banner in scripts
+- `silent_update` param in `compare()` — same for programmatic use
+- JSON output now includes `source_info` field
+- `pyproject.toml` classifiers expanded — Python 3.8–3.13, better discoverability
+- `vanished_categories` in all output formats (terminal, HTML, TXT, JSON)
+
+### v0.9.0 (previous)
 - pandas DataFrame support — pass DataFrames directly to `compare()`
 - List of dicts input — `[{"age": 22, "city": "Chennai"}, ...]` supported
 - `--fail-on-drift` CLI flag — exit code 1 when drift detected, for CI/CD pipelines
 - `DriftDetected` exception — catch in Python for custom alerting logic
-- `updater.py` — auto version check against PyPI, 24h cached, silent in CI
-- Health score hard-cap — any HIGH column caps score at ≤50 (was averaging, now accurate)
-- Missing column warnings — schema mismatches shown explicitly, not silently dropped
-- Mixed-type column warnings — columns 50-80% numeric now warn before type decision
-- Timestamp + source in all reports — HTML, TXT, terminal all show when and what was compared
-- Chi-square O(n²) → O(n) — pre-computed count dicts, fast on large datasets
+- Auto version check against PyPI, 24h cached
+- Health score hard-cap — any HIGH column caps score at ≤50
+- Missing column warnings — schema mismatches shown explicitly
+- Mixed-type column warnings — columns 50-80% numeric now warn
+- Timestamp + source in all reports
+- Chi-square O(n²) → O(n)
 
 ### v0.2.0
 - Custom threshold configuration (`psi_threshold`, `thresholds` dict)

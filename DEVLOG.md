@@ -46,6 +46,11 @@ psiwatch/
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output
 │   ├── updater.py       ← PyPI version check + psiwatch update command
+│   ├── locker.py        ← baseline locking (lock / check / lock-info)
+│   ├── trend.py         ← multi-file drift trend analysis
+│   ├── watcher.py       ← directory polling with mtime-based state
+│   ├── webhook.py       ← Slack/Discord/generic webhook alerts
+│   ├── config.py        ← psiwatch.toml / .psiwatchrc config loader
 │   └── cli.py           ← CLI entry point
 ├── samples/
 │   ├── train.csv
@@ -68,6 +73,14 @@ v0.9.0  → pandas DataFrame support, list of dicts input, --fail-on-drift, Drif
            timestamp in all reports, chi-square O(n²) → O(n) fix, updater.py
 v0.10.0 → psiwatch update command, trend direction (↑↓→), vanished category detection,
            banner alignment fix, CI auto-silence, --silent flag, JSON source_info field
+v0.11.0 → result["summary"] in analyze(), sample size warnings, --ignore-columns,
+           psiwatch summary command, psiwatch lock / check / lock-info (baseline locking)
+v0.12.0 → psiwatch trend (multi-file drift timeline + worsening detection),
+           psiwatch watch (directory polling, mtime state persistence, --once for cron/CI),
+           --webhook flag (Slack/Discord/generic JSON alerts on all commands),
+           config file support (psiwatch.toml / .psiwatchrc, auto-detected),
+           analyze_trend() / watch_directory() / send_webhook() / load_config() Python APIs
+           57 tests
 ```
 
 ---
@@ -110,9 +123,16 @@ psiwatch compare old.csv new.csv
 psiwatch compare old.csv new.csv --output report.html
 psiwatch compare old.csv new.csv --output report.json
 psiwatch compare old.csv new.csv --columns age,score,city
+psiwatch compare old.csv new.csv --ignore-columns id,timestamp
 psiwatch compare old.csv new.csv --psi-threshold 0.15
 psiwatch compare old.csv new.csv --fail-on-drift
-psiwatch compare old.csv new.csv --silent
+psiwatch compare old.csv new.csv --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
+psiwatch summary train.csv new.csv
+psiwatch lock train.csv
+psiwatch check new.csv --fail-on-drift
+psiwatch trend day1.csv day2.csv day3.csv
+psiwatch trend day1.csv day2.csv day3.csv --baseline first --output trend.json
+psiwatch watch data/ --once --webhook https://hooks.slack.com/services/XXX
 psiwatch update
 psiwatch version
 ```
@@ -128,7 +148,19 @@ psiwatch.compare_columns([22,23,21], [28,30,29], name="age")
 
 result = psiwatch.analyze("old.csv", "new.csv")
 print(result["health_score"])
+print(result["summary"]["drifted_columns"])
 print(result["columns"]["age"]["metrics"]["trend_direction"])  # "up" / "down" / "stable"
+
+# Trend across multiple files
+trend = psiwatch.analyze_trend(["day1.csv", "day2.csv", "day3.csv"])
+print(trend["overall_health_history"])
+print(trend["worsening_columns"])
+
+# Watch a directory (cron-safe)
+psiwatch.watch_directory("data/", once=True, webhook="https://hooks.slack.com/services/XXX")
+
+# Send webhook manually
+psiwatch.send_webhook("https://hooks.slack.com/services/XXX/YYY/ZZZ", result)
 ```
 
 ### Generate test data in Termux

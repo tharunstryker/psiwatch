@@ -99,13 +99,14 @@ def print_report(analysis, source_info=None):
 
 # ─── JSON ─────────────────────────────────────────────────────────────────────
 
-def to_json(analysis, filepath=None):
+def to_json(analysis, filepath=None, silent=False):
     enriched = {**analysis, 'generated_at': _now()}
     output = json.dumps(enriched, indent=2)
     if filepath:
         with open(filepath, 'w') as f:
             f.write(output)
-        print(f"Report saved → {filepath}")
+        if not silent:
+            print(f"Report saved → {filepath}")
     else:
         print(output)
     return output
@@ -113,7 +114,7 @@ def to_json(analysis, filepath=None):
 
 # ─── TXT ──────────────────────────────────────────────────────────────────────
 
-def to_txt(analysis, filepath=None, source_info=None):
+def to_txt(analysis, filepath=None, source_info=None, silent=False):
     columns = analysis['columns']
     health = analysis['health_score']
     icon, label = _health_label(health)
@@ -168,7 +169,8 @@ def to_txt(analysis, filepath=None, source_info=None):
     if filepath:
         with open(filepath, 'w') as f:
             f.write(output)
-        print(f"Report saved → {filepath}")
+        if not silent:
+            print(f"Report saved → {filepath}")
     else:
         print(output)
     return output
@@ -176,7 +178,7 @@ def to_txt(analysis, filepath=None, source_info=None):
 
 # ─── HTML ─────────────────────────────────────────────────────────────────────
 
-def to_html(analysis, filepath=None, source_info=None):
+def to_html(analysis, filepath=None, source_info=None, silent=False):
     columns = analysis['columns']
     health = analysis['health_score']
     _, label = _health_label(health)
@@ -413,7 +415,7 @@ def to_html(analysis, filepath=None, source_info=None):
 
 # ─── Router ───────────────────────────────────────────────────────────────────
 
-def output_report(analysis, output=None, source_info=None):
+def output_report(analysis, output=None, source_info=None, silent=False):
     if output is None:
         print_report(analysis, source_info=source_info)
         return
@@ -421,10 +423,10 @@ def output_report(analysis, output=None, source_info=None):
     ext = os.path.splitext(output)[1].lower()
 
     if ext == '.json':
-        to_json(analysis, output)
+        to_json(analysis, output, silent=silent)
     elif ext == '.txt':
-        to_txt(analysis, output, source_info=source_info)
+        to_txt(analysis, output, source_info=source_info, silent=silent)
     elif ext == '.html':
-        to_html(analysis, output, source_info=source_info)
+        to_html(analysis, output, source_info=source_info, silent=silent)
     else:
         raise ValueError(f"Unsupported output format: {ext}. Use .json, .txt, or .html")
