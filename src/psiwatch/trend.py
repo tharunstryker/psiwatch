@@ -4,6 +4,10 @@ trend.py — Multi-snapshot trend analysis for psiwatch.
 Tracks how columns drift across a sequence of datasets over time —
 e.g. one CSV snapshot per day/week — instead of a single A/B compare.
 
+v0.12.0 fix: HTML trend report now escapes column names and source
+labels before interpolating them into the page (same XSS fix as
+reporter.py's to_html()).
+
 Usage:
     psiwatch trend day1.csv day2.csv day3.csv day4.csv
     psiwatch trend day1.csv day2.csv day3.csv --baseline first
@@ -20,6 +24,7 @@ Usage:
 
 import json
 import os
+import html
 from datetime import datetime
 
 _SEVERITY_ORDER = {"PASS": 0, "MEDIUM": 1, "HIGH": 2, "UNKNOWN": 0}
@@ -198,12 +203,17 @@ def to_html_trend(result, filepath=None):
     steps = result["steps"]
     column_history = result["column_history"]
     generated_at = result.get("generated_at", "")
-    files_label = " → ".join(result["files"])
+    files_label = " → ".join(html.escape(str(f)) for f in result["files"])
     baseline_mode = result["baseline_mode"]
 
     health_over_time = [s["health_score"] for s in steps]
-    labels_js = str([f"{s['from']} → {s['to']}" for s in steps])
-    health_js = str(health_over_time)
+    # json.dumps (not str()) so step labels are JS-string-safe — a label
+    # containing a quote can't break out of the JS string. The
+    # "</script" guard additionally prevents a label from closing the
+    # surrounding <script> tag early and injecting raw HTML/script after it.
+    step_labels = [f"{s['from']} → {s['to']}" for s in steps]
+    labels_js = json.dumps(step_labels).replace("</script", "<\\/script")
+    health_js = json.dumps(health_over_time)
 
     sev_colors = {
         "HIGH": "#ef4444", "MEDIUM": "#eab308",
@@ -212,11 +222,12 @@ def to_html_trend(result, filepath=None):
 
     col_rows = ""
     for col, hist in sorted(column_history.items()):
+        col_escaped = html.escape(str(col))
         flag = " ⚠" if col in result["worsening_columns"] else ""
         cells = "".join(
             f'<td style="background:{sev_colors.get(s,"#334155")};color:white;'
             f'text-align:center;padding:0.3rem 0.6rem;font-size:0.72rem;'
-            f'font-weight:700;border-radius:4px;min-width:80px">{s}</td>'
+            f'font-weight:700;border-radius:4px;min-width:80px">{html.escape(str(s))}</td>'
             for s in hist["severity_history"]
         )
         psi_cells = "".join(
@@ -227,25 +238,26 @@ def to_html_trend(result, filepath=None):
         col_rows += (
             f"<tr>"
             f'<td style="padding:0.4rem 0.75rem;color:#94a3b8;white-space:nowrap">'
-            f"{col}{flag}</td>{cells}</tr>"
+            f"{col_escaped}{flag}</td>{cells}</tr>"
             f"<tr><td style='padding:0 0.75rem 0.5rem;color:#475569;font-size:0.7rem'>"
             f"PSI</td>{psi_cells}</tr>"
         )
 
     step_headers = "".join(
         f"<th style='padding:0.3rem 0.6rem;color:#64748b;font-size:0.72rem;"
-        f"white-space:nowrap'>{s['from'][:10]}→{s['to'][:10]}</th>"
+        f"white-space:nowrap'>{html.escape(str(s['from'])[:10])}→{html.escape(str(s['to'])[:10])}</th>"
         for s in steps
     )
 
     worsening_html = ""
     if result["worsening_columns"]:
+        worsening_cols_escaped = ", ".join(html.escape(str(c)) for c in result["worsening_columns"])
         worsening_html = (
             f'<div class="warn-block">⚠ Steadily worsening: '
-            f'<b>{", ".join(result["worsening_columns"])}</b></div>'
+            f'<b>{worsening_cols_escaped}</b></div>'
         )
 
-    html = f"""<!DOCTYPE html>
+    html_out = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -273,7 +285,7 @@ def to_html_trend(result, filepath=None):
 <div class="meta">
   <span>Files: {files_label}</span>
   <span>Baseline: {baseline_mode}</span>
-  <span>Generated: {generated_at}</span>
+  <span>Generated: {html.escape(str(generated_at))}</span>
 </div>
 
 {worsening_html}
@@ -333,11 +345,11 @@ new Chart(ctx, {{
 
     if filepath:
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(html)
+            f.write(html_out)
         print(f"  Trend report saved → {filepath}")
     else:
-        print(html)
-    return html
+        print(html_out)
+    return html_out
 
 
 def output_trend(result, output=None):

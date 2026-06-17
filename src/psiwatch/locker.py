@@ -4,6 +4,14 @@ locker.py — Baseline locking for psiwatch.
 Saves a statistical fingerprint of a CSV to a .lock.json file.
 Future runs compare against the lock instead of the original CSV.
 
+v0.12.0 fix: the lock file now stores a bounded statistical fingerprint
+(mean/std/percentiles + a 10-bin histogram for numeric columns, category
+frequencies for categorical columns) instead of every raw row value. A
+lock for a 1,000,000-row baseline is now a few KB, not a copy of the
+dataset. Old lock files saved before this fix used the legacy
+"values_sample" format and will raise a clear error — re-run
+`psiwatch lock` to regenerate them in the new format.
+
 Usage:
     # CLI
     psiwatch lock train.csv                      # creates psiwatch.lock.json
@@ -24,14 +32,16 @@ import os
 from datetime import datetime
 
 DEFAULT_LOCK_FILE = "psiwatch.lock.json"
+LOCK_FORMAT_VERSION = "2"
 
 
 def _summarize(col_data):
-    """Build a compact statistical fingerprint of a column dict."""
-    from .analyzer import (
-        _mean, _std, _percentile, _frequencies,
-        _is_numeric, DEFAULT_THRESHOLDS
-    )
+    """
+    Build a bounded statistical fingerprint of a column dict — O(bins) for
+    numeric columns, O(unique categories) for categorical columns. Never
+    stores raw row-level values.
+    """
+    from .analyzer import build_numeric_summary, build_categorical_summary
     from .loader import detect_type, cast_numeric
 
     snapshot = {}
@@ -41,21 +51,13 @@ def _summarize(col_data):
 
         if col_type == "numeric":
             nums = cast_numeric(values)
-            if nums:
-                entry["mean"] = round(_mean(nums), 6)
-                entry["std"] = round(_std(nums), 6)
-                entry["min"] = round(min(nums), 6)
-                entry["p25"] = round(_percentile(nums, 25), 6)
-                entry["median"] = round(_percentile(nums, 50), 6)
-                entry["p75"] = round(_percentile(nums, 75), 6)
-                entry["max"] = round(max(nums), 6)
-                entry["values_sample"] = nums  # kept for PSI binning
+            summary = build_numeric_summary(nums)
+            if summary:
+                entry["summary"] = summary
         else:
-            strs = [str(v) for v in values]
-            freq = _frequencies(strs)
-            entry["categories"] = sorted(set(strs))
-            entry["frequencies"] = freq
-            entry["values_sample"] = strs
+            summary = build_categorical_summary(values)
+            if summary:
+                entry["summary"] = summary
 
         snapshot[col] = entry
     return snapshot
@@ -87,7 +89,7 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None):
 
     lock = {
         "psiwatch_lock": True,
-        "version": "1",
+        "version": LOCK_FORMAT_VERSION,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source": source_label,
         "columns": _summarize(col_data),
@@ -101,12 +103,17 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None):
     return lock
 
 
-def _lock_to_col_data(lock):
-    """Reconstruct column data dict from a lock snapshot for analyze()."""
-    col_data = {}
+def _lock_to_summaries(lock):
+    """
+    Build the baseline_summaries dict that analyzer.analyze() expects,
+    from a v2 lock file's per-column fingerprints.
+    """
+    summaries = {}
     for col, entry in lock["columns"].items():
-        col_data[col] = entry.get("values_sample", [])
-    return col_data
+        if "summary" not in entry:
+            continue
+        summaries[col] = {"type": entry["type"], "summary": entry["summary"]}
+    return summaries
 
 
 def load_lock(new_source, lock_path=DEFAULT_LOCK_FILE, output=None,
@@ -145,12 +152,23 @@ def load_lock(new_source, lock_path=DEFAULT_LOCK_FILE, output=None,
     if not lock.get("psiwatch_lock"):
         raise ValueError(f"{lock_path} is not a valid psiwatch lock file.")
 
-    baseline_cols = _lock_to_col_data(lock)
+    if lock.get("version") == "1" or any(
+        "values_sample" in entry for entry in lock.get("columns", {}).values()
+    ):
+        raise ValueError(
+            f"{lock_path} was created by an older psiwatch version (lock format v1) "
+            f"that stored raw row data instead of a fingerprint. Re-run "
+            f"`psiwatch lock <baseline.csv> --output {os.path.basename(lock_path)}` "
+            f"to regenerate it in the current format."
+        )
+
+    baseline_summaries = _lock_to_summaries(lock)
     new_cols = resolve_input(new_source)
 
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
-    result = _analyze(baseline_cols, new_cols, columns=columns,
-                      ignore_columns=ignore_columns, thresholds=t)
+    result = _analyze({}, new_cols, columns=columns,
+                      ignore_columns=ignore_columns, thresholds=t,
+                      baseline_summaries=baseline_summaries)
 
     locked_at = lock.get("created_at", "unknown")
     source_info = f"lock: {os.path.basename(lock_path)} (created {locked_at})"
@@ -186,13 +204,14 @@ def lock_info(lock_path=DEFAULT_LOCK_FILE):
     for col, entry in lock["columns"].items():
         col_type = entry.get("type", "?")
         count = entry.get("count", "?")
+        summary = entry.get("summary", {})
         if col_type == "numeric":
             print(f"  {col} [numeric, n={count}]")
-            print(f"    mean={entry.get('mean')}  std={entry.get('std')}")
-            print(f"    min={entry.get('min')}  p25={entry.get('p25')}  "
-                  f"median={entry.get('median')}  p75={entry.get('p75')}  max={entry.get('max')}")
+            print(f"    mean={summary.get('mean')}  std={summary.get('std')}")
+            print(f"    min={summary.get('min')}  p25={summary.get('p25')}  "
+                  f"median={summary.get('median')}  p75={summary.get('p75')}  max={summary.get('max')}")
         else:
-            cats = entry.get("categories", [])
+            cats = summary.get("categories", [])
             print(f"  {col} [categorical, n={count}, {len(cats)} categories]")
             print(f"    {cats[:8]}{'...' if len(cats) > 8 else ''}")
     print()

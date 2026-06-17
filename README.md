@@ -320,7 +320,7 @@ psiwatch.compare("old.csv", "new.csv", thresholds={
 
 ## Auto Update Check
 
-psiwatch checks PyPI for newer versions on every run. Check is cached for 24 hours — won't spam on every import. Automatically silent in CI environments (`CI=true`, `GITHUB_ACTIONS=true`, `PSIWATCH_SILENT=1`).
+The `psiwatch` CLI checks PyPI for newer versions when you run a command — never on `import psiwatch`. The check is cached for 24 hours (so it's not a PyPI request on every run, just every CLI invocation within the cache window) and is automatically silent in CI environments (`CI=true`, `GITHUB_ACTIONS=true`, `PSIWATCH_SILENT=1`).
 
 ```
   ╔════════════════════════════════════════════════════╗
@@ -329,11 +329,18 @@ psiwatch checks PyPI for newer versions on every run. Check is cached for 24 hou
   ╚════════════════════════════════════════════════════╝
 ```
 
-To suppress manually:
+To suppress from the CLI:
+
+```bash
+psiwatch compare old.csv new.csv --silent
+```
+
+`import psiwatch` and library calls like `psiwatch.compare(...)` never trigger this check or make any network call — it's CLI-only. If you want the check inside your own script, opt in explicitly:
 
 ```python
+from psiwatch.updater import check_for_update
 import psiwatch
-psiwatch.compare("old.csv", "new.csv", silent_update=True)
+check_for_update(psiwatch.__version__)
 ```
 
 ---
@@ -569,14 +576,16 @@ What psiwatch caught:
 
 ```
 psiwatch/
+├── .github/workflows/
+│   └── ci.yml            ← pytest on Python 3.8–3.13 + build/version check
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
 │   ├── loader.py        ← CSV, dict, list, DataFrame input
-│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend
-│   ├── reporter.py      ← terminal, HTML, JSON, TXT output
-│   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade
-│   ├── locker.py        ← baseline locking (lock / check / lock-info)
-│   ├── trend.py         ← multi-file drift trend analysis
+│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
+│   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
+│   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
+│   ├── locker.py        ← baseline locking (lock / check / lock-info) — stores fingerprints, not raw data
+│   ├── trend.py         ← multi-file drift trend analysis (HTML-escaped)
 │   ├── watcher.py       ← directory polling with mtime-based state
 │   ├── webhook.py       ← Slack/Discord/generic webhook alerts
 │   ├── config.py        ← psiwatch.toml / .psiwatchrc config loader
@@ -585,7 +594,13 @@ psiwatch/
 │   ├── train.csv        ← example baseline dataset
 │   └── new.csv          ← example drifted dataset
 ├── tests/
-│   └── test_analyzer.py
+│   ├── test_analyzer.py
+│   ├── test_locker.py
+│   ├── test_reporter.py
+│   ├── test_trend.py
+│   ├── test_updater.py
+│   ├── test_webhook.py
+│   └── test_config.py
 ├── pyproject.toml
 └── README.md
 ```
@@ -595,7 +610,8 @@ psiwatch/
 ## Run Tests
 
 ```bash
-PYTHONPATH=src python3 tests/test_analyzer.py
+pip install -e ".[dev]"
+pytest
 ```
 
 ```
@@ -637,6 +653,12 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 ---
 
 ## Changelog
+
+### v0.12.0 — security & bug-fix release (no new features)
+- **Fixed:** `psiwatch lock` was storing the entire raw baseline dataset inside the lock file (under `values_sample`) instead of a statistical fingerprint — a 10,000-row baseline produced a multi-MB lock file containing your original training data. Lock files now store mean/std/percentiles plus a 10-bin histogram (numeric) or category frequencies (categorical) — bounded size regardless of dataset size, and no raw rows. Lock files created before this fix are detected and rejected with a message to re-run `psiwatch lock`.
+- **Fixed:** HTML reports (`to_html()`, `to_html_trend()`) interpolated column names, category values, and source filenames directly into the page — and into an inline `<script>` block for the trend chart — with no escaping. A column name or category value containing `<script>...</script>` would execute when the report was opened in a browser. All interpolated content is now HTML-escaped, with an additional guard against `</script>` breakout in the chart's JSON payload.
+- **Fixed:** `import psiwatch` made a network call to PyPI on every import (the update-check banner), even inside training pipelines, notebooks, or CI steps that never touch the CLI. The check now only runs from the `psiwatch` CLI itself; plain `import psiwatch` makes zero network calls. `compare()`'s `silent_update` parameter is now a documented no-op (kept so existing calls don't break) since the check it used to suppress no longer happens at that call site.
+- Test suite converted from a standalone script with a hand-rolled pass/fail counter (no real `assert`s, never run by CI) into a real `pytest` suite across 6 files, including dedicated regression tests for all three fixes above. Added `.github/workflows/ci.yml` running the suite on Python 3.8–3.13 plus a package-build and version-consistency check on every push and pull request.
 
 ### v0.11.0
 - `psiwatch trend` — track drift across a sequence of datasets over time; detect worsening columns

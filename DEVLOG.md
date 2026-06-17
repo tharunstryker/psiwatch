@@ -40,14 +40,16 @@ Outputs to terminal, HTML, JSON, or TXT with a 0-100 Drift Health Score.
 
 ```
 psiwatch/
+├── .github/workflows/
+│   └── ci.yml            ← pytest on Python 3.8–3.13 + build/version check, runs on every push/PR
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
 │   ├── loader.py        ← CSV, dict, list, DataFrame input
-│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend
-│   ├── reporter.py      ← terminal, HTML, JSON, TXT output
-│   ├── updater.py       ← PyPI version check + psiwatch update command
-│   ├── locker.py        ← baseline locking (lock / check / lock-info)
-│   ├── trend.py         ← multi-file drift trend analysis
+│   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
+│   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
+│   ├── updater.py       ← PyPI version check + psiwatch update command (CLI-only trigger)
+│   ├── locker.py        ← baseline locking (lock / check / lock-info) — stores fingerprints, not raw data
+│   ├── trend.py         ← multi-file drift trend analysis (HTML-escaped)
 │   ├── watcher.py       ← directory polling with mtime-based state
 │   ├── webhook.py       ← Slack/Discord/generic webhook alerts
 │   ├── config.py        ← psiwatch.toml / .psiwatchrc config loader
@@ -56,8 +58,14 @@ psiwatch/
 │   ├── train.csv
 │   └── new.csv
 ├── tests/
-│   └── test_analyzer.py
-├── pyproject.toml
+│   ├── test_analyzer.py ← core analyze()/compare_columns() behavior
+│   ├── test_locker.py   ← lock/check + fingerprint-size regression tests
+│   ├── test_reporter.py ← HTML report + XSS-escaping regression tests
+│   ├── test_trend.py    ← trend analysis + HTML/script-injection regression tests
+│   ├── test_updater.py  ← import-time network-call regression test
+│   ├── test_webhook.py  ← webhook formatting/dispatch
+│   └── test_config.py   ← TOML config loading
+├── pyproject.toml        ← includes [tool.pytest.ini_options] + dev extras
 └── README.md
 ```
 
@@ -74,13 +82,37 @@ v0.9.0  → pandas DataFrame support, list of dicts input, --fail-on-drift, Drif
 v0.10.0 → psiwatch update command, trend direction (↑↓→), vanished category detection,
            banner alignment fix, CI auto-silence, --silent flag, JSON source_info field
 v0.11.0 → result["summary"] in analyze(), sample size warnings, --ignore-columns,
-           psiwatch summary command, psiwatch lock / check / lock-info (baseline locking)
-v0.12.0 → psiwatch trend (multi-file drift timeline + worsening detection),
+           psiwatch summary command, psiwatch lock / check / lock-info (baseline locking),
+           psiwatch trend (multi-file drift timeline + worsening detection),
            psiwatch watch (directory polling, mtime state persistence, --once for cron/CI),
            --webhook flag (Slack/Discord/generic JSON alerts on all commands),
            config file support (psiwatch.toml / .psiwatchrc, auto-detected),
            analyze_trend() / watch_directory() / send_webhook() / load_config() Python APIs
            57 tests
+v0.12.0 → SECURITY/BUG-FIX RELEASE (no new features):
+           • locker.py: lock files were storing the entire raw baseline dataset under
+             "values_sample" instead of a fingerprint — a 10,000-row baseline produced a
+             ~multi-MB lock file containing the original training data. Now stores a
+             bounded statistical fingerprint (mean/std/percentiles + 10-bin histogram for
+             numeric, category frequencies for categorical) — O(bins)/O(unique categories)
+             instead of O(rows). A 50,000-row baseline now locks to under 5KB. Old-format
+             lock files are detected and rejected with a message to re-run `psiwatch lock`.
+           • reporter.py / trend.py: to_html() and to_html_trend() interpolated column
+             names, category values, reasons, and file labels directly into HTML (and into
+             an inline <script> block for the trend chart) with zero escaping. A column
+             name or category value like "<script>...</script>" in the source CSV would
+             execute when the generated report was opened in a browser. All interpolated
+             strings are now html.escape()'d; the script-block payload additionally guards
+             against "</script>" breakout.
+           • __init__.py: `import psiwatch` made an unconditional network call to PyPI on
+             every import (the update-check banner), including inside training pipelines,
+             notebooks, or CI steps that never touch the CLI. The check now only fires from
+             the `psiwatch` CLI entry point; plain `import psiwatch` makes zero network calls.
+           • Test suite converted from a hand-rolled script with a pass/fail counter (no
+             real asserts, never run by CI, exited 0 on failure) to a real pytest suite
+             across 6 files. CI added (.github/workflows/ci.yml) running pytest on Python
+             3.8–3.13 plus a build + version-consistency check on every push/PR.
+           53 tests, all real pytest asserts (vs. 65 script-counted checks before)
 ```
 
 ---
@@ -311,8 +343,11 @@ python3 ~/upload.py
 
 ```bash
 cd ~/psiwatch
-PYTHONPATH=src python3 tests/test_analyzer.py
+pip install -e ".[dev]" --break-system-packages
+pytest
 ```
+
+CI runs this automatically on every push/PR across Python 3.8–3.13.
 
 ---
 
@@ -502,7 +537,8 @@ python3 ~/upload.py
 
 ```bash
 cd ~/psiwatch
-PYTHONPATH=src python3 tests/test_analyzer.py
+pip install -e ".[dev]" --break-system-packages
+pytest
 ```
 
 ### Locate files in Termux

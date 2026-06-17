@@ -46,17 +46,24 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
     "analyze_trend", "watch_directory", "write_example_config",
 ]
 
-try:
-    check_for_update(__version__)
-except Exception:
-    pass
+# v0.12.0 fix: `import psiwatch` no longer makes a network call to PyPI.
+# Previously this ran unconditionally on every import — including when
+# psiwatch is imported inside a training pipeline, notebook, or CI step
+# that never calls the CLI — adding a silent ~3s network dependency to
+# code that just wanted the library. The update-check banner is now only
+# triggered by the `psiwatch` CLI entry point (see cli.py main()), which
+# is the only context where a human is actually watching the terminal
+# output. Library users who *do* want the check can opt in explicitly:
+#
+#     from psiwatch.updater import check_for_update
+#     check_for_update(psiwatch.__version__)
 
 
 # ─── Threshold builder (used by locker, watcher, trend) ──────────────────────
@@ -112,7 +119,10 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
         psi_threshold: sets the HIGH drift PSI boundary (medium auto-scales to 40%)
         thresholds: dict of fine-grained threshold overrides
         fail_on_drift: raises DriftDetected if health_score < 80
-        silent_update: suppress update banner for this call
+        silent_update: deprecated, no-op as of v0.12.0. The PyPI update-check
+            banner no longer runs from library code (compare/analyze/etc) —
+            it only fires from the `psiwatch` CLI, gated by --silent there.
+            Kept here only so existing calls with silent_update=... don't break.
 
     Returns:
         dict — keys: 'columns', 'health_score', 'warnings', 'summary'

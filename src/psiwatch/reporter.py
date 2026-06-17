@@ -4,10 +4,17 @@ Supports: terminal print, .json, .txt, .html
 
 FIX: HTML report now includes timestamp + source file names.
 FIX: Warnings (dropped columns, mixed-type columns) shown in all output formats.
+
+v0.12.0 fix: all user-derived strings (column names, category values,
+reasons, warnings, source labels) are now HTML-escaped before being
+interpolated into the HTML report. Previously a column name or category
+value like "<script>...</script>" in the source CSV would execute when
+the generated report was opened in a browser.
 """
 
 import json
 import os
+import html
 from datetime import datetime
 
 
@@ -208,14 +215,15 @@ def to_html(analysis, filepath=None, source_info=None, silent=False):
     for r in columns.values():
         all_warnings.extend(r.get('warnings', []))
     if all_warnings:
-        warn_items = "".join(f"<li>⚠ {w}</li>" for w in all_warnings)
+        warn_items = "".join(f"<li>⚠ {html.escape(str(w))}</li>" for w in all_warnings)
         warnings_html = f'<div class="warn-block"><ul>{warn_items}</ul></div>'
 
     rows_html = ""
     for col, result in columns.items():
         sev = result['severity']
         color = sev_colors[sev]
-        reasons = "<br>".join(result.get('reasons', ['No drift detected'])) or "No drift detected"
+        reason_list = result.get('reasons', ['No drift detected'])
+        reasons = "<br>".join(html.escape(str(r)) for r in reason_list) or "No drift detected"
 
         m = result.get('metrics', {})
         if result['type'] == 'numeric':
@@ -241,18 +249,19 @@ def to_html(analysis, filepath=None, source_info=None, silent=False):
               </table>
             </div>"""
         else:
+            new_cats_escaped = ', '.join(html.escape(str(c)) for c in m.get('new_categories', [])) or 'None'
             metrics_html = f"""
             <div class="metrics">
               <span>PSI: <b>{_fmt(m.get('psi'),4)}</b></span>
               <span>Chi²: <b>{_fmt(m.get('chi_square'),4)}</b></span>
-              <span>New categories: <b>{', '.join(m.get('new_categories', [])) or 'None'}</b></span>
+              <span>New categories: <b>{new_cats_escaped}</b></span>
             </div>"""
 
         rows_html += f"""
         <div class="col-card" style="border-left-color:{color}">
           <div class="col-header">
-            <span class="col-name">{col}</span>
-            <span class="col-type">{result['type']}</span>
+            <span class="col-name">{html.escape(str(col))}</span>
+            <span class="col-type">{html.escape(str(result['type']))}</span>
             <span class="badge" style="background:{color}">{sev}</span>
           </div>
           <div class="reasons">{reasons}</div>
@@ -265,11 +274,11 @@ def to_html(analysis, filepath=None, source_info=None, silent=False):
             counts[r['severity']] += 1
 
     # FIX: timestamp + source in HTML
-    meta_line = f'<span class="meta-item">Generated: {timestamp}</span>'
+    meta_line = f'<span class="meta-item">Generated: {html.escape(timestamp)}</span>'
     if source_info:
-        meta_line += f'<span class="meta-item">{source_info}</span>'
+        meta_line += f'<span class="meta-item">{html.escape(str(source_info))}</span>'
 
-    html = f"""<!DOCTYPE html>
+    html_out = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -406,11 +415,11 @@ def to_html(analysis, filepath=None, source_info=None, silent=False):
 
     if filepath:
         with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html)
+            f.write(html_out)
         print(f"Report saved → {filepath}")
     else:
-        print(html)
-    return html
+        print(html_out)
+    return html_out
 
 
 # ─── Router ───────────────────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ import argparse
 import sys
 import os
 from . import compare, analyze, DriftDetected, __version__
-from .updater import do_upgrade
+from .updater import do_upgrade, check_for_update
 
 
 def _load_cfg():
@@ -251,6 +251,15 @@ Examples:
 
     if args.command == "update":
         sys.exit(do_upgrade())
+
+    # v0.12.0: the PyPI version-check banner now only fires from the CLI
+    # (never on `import psiwatch`). --silent or PSIWATCH_SILENT=1 / CI=true
+    # env vars suppress it; check_for_update() already handles the latter.
+    if not getattr(args, "silent", False):
+        try:
+            check_for_update(__version__)
+        except Exception:
+            pass
 
     if args.command == "init":
         from .config import write_example_config
