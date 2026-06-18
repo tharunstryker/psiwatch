@@ -46,7 +46,7 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.12.0"
+__version__ = "0.12.1"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
@@ -221,3 +221,4 @@ class DriftDetected(Exception):
             print(f"Blocked: {e}")
     """
     pass
+
