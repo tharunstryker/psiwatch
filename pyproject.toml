@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiwatch"
-version = "0.12.0"
+version = "0.12.1"
 description = "A zero-dependency Python library and CLI for detecting dataset drift in ML pipelines."
-authors = [{ name = "Tharun", email = "neetibyaevra@gmail.com" }]
+authors = [{ name = "tharunstryker", email = "tharunstryker@gmail.com" }]
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.8"
 dependencies = []
 
@@ -26,7 +26,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
