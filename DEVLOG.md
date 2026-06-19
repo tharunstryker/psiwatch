@@ -113,6 +113,15 @@ v0.12.0 → SECURITY/BUG-FIX RELEASE (no new features):
              across 6 files. CI added (.github/workflows/ci.yml) running pytest on Python
              3.8–3.13 plus a build + version-consistency check on every push/PR.
            53 tests, all real pytest asserts (vs. 65 script-counted checks before)
+v0.12.1 → Metadata-only fix — corrected author name/email and switched `license` to the
+           SPDX-string format expected by current packaging tooling. No code changes.
+v0.12.2 → loader.py: added Parquet file support — compare()/analyze()/CLI `compare` now
+           accept .parquet/.pq paths anywhere a CSV path works, auto-detected by extension
+           (requires pandas + pyarrow, optional — core stays zero-dependency). Added
+           load_sql(query, connection) — run a query against any DB-API connection you
+           already opened (sqlite3, psycopg2, pymysql, SQLAlchemy, etc.) and feed the result
+           straight into compare_data(). No bundled DB driver, no credential handling —
+           bring your own connection.
 ```
 
 ---

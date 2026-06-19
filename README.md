@@ -495,10 +495,12 @@ All outputs include: timestamp, source file names, per-column metrics, health sc
 | Input | Works with |
 |---|---|
 | CSV file path `"old.csv"` | `compare()` |
+| Parquet file path `"old.parquet"` | `compare()` (requires `pandas` + `pyarrow`) |
 | pandas DataFrame | `compare()`, `compare_data()` |
 | Python dict `{"col": [values]}` | `compare()`, `compare_data()` |
 | List of dicts `[{"col": val}, ...]` | `compare()` |
 | Plain Python list | `compare_columns()` |
+| SQL query + DB-API connection | `psiwatch.loader.load_sql()` → `compare_data()` |
 
 ---
 
@@ -580,7 +582,7 @@ psiwatch/
 │   └── ci.yml            ← pytest on Python 3.8–3.13 + build/version check
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
-│   ├── loader.py        ← CSV, dict, list, DataFrame input
+│   ├── loader.py        ← CSV, Parquet, SQL, dict, list, DataFrame input
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
 │   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
@@ -653,6 +655,10 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 ---
 
 ## Changelog
+
+### v0.12.2
+- **Added:** Parquet file support — `compare()`, `analyze()`, and the CLI `compare` command now accept `.parquet`/`.pq` file paths anywhere a CSV path is accepted, auto-detected by extension. Requires `pandas` + `pyarrow` to be installed (optional — psiwatch's core stays zero-dependency).
+- **Added:** `load_sql(query, connection)` in `psiwatch.loader` — run a SQL query against any DB-API connection you already have open (`sqlite3`, `psycopg2`, `pymysql`, SQLAlchemy, etc.) and feed the result straight into `compare_data()`. psiwatch does not bundle or require any DB driver — bring your own connection.
 
 ### v0.12.1
 - **Fixed:** package metadata in `pyproject.toml` — corrected author name/email and switched `license` to the SPDX-string format expected by current packaging tooling. No code changes.

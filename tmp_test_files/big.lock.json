@@ -1,0 +1,37 @@
+{
+  "psiwatch_lock": true,
+  "version": "2",
+  "created_at": "2026-06-18 07:20:00",
+  "source": "dict",
+  "columns": {
+    "age": {
+      "type": "numeric",
+      "count": 20000,
+      "summary": {
+        "count": 20000,
+        "mean": 9999.5,
+        "std": 5773.502685,
+        "min": 0.0,
+        "p25": 4999.75,
+        "median": 9999.5,
+        "p75": 14999.25,
+        "max": 19999.0,
+        "hist_bins": 10,
+        "hist_min": 0.0,
+        "hist_max": 19999.0,
+        "hist_counts": [
+          2000,
+          2000,
+          2000,
+          2000,
+          2000,
+          2000,
+          2000,
+          2000,
+          2000,
+          2000
+        ]
+      }
+    }
+  }
+}

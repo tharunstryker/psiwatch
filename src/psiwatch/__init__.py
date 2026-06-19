@@ -38,6 +38,17 @@ psiwatch — Dataset drift detection library.
     # Webhook
     from psiwatch.webhook import send_webhook
     send_webhook("https://hooks.slack.com/...", result)
+
+    # Parquet files — works anywhere a CSV path works (auto-detected by extension)
+    psiwatch.compare("old.parquet", "new.parquet")
+
+    # SQL — bring your own DB-API connection (sqlite3, psycopg2, pymysql, etc.)
+    from psiwatch.loader import load_sql
+    import sqlite3
+    conn = sqlite3.connect("mydb.sqlite")
+    baseline = load_sql("SELECT * FROM users WHERE month='jan'", conn)
+    new = load_sql("SELECT * FROM users WHERE month='feb'", conn)
+    psiwatch.compare_data(baseline, new)
 """
 
 import os
@@ -46,7 +57,7 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.12.1"
+__version__ = "0.12.2"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
@@ -111,8 +122,8 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
     Compare two datasets and print or save a drift report.
 
     Args:
-        old: CSV path, dict, list of dicts, or pandas DataFrame — baseline
-        new: CSV path, dict, list of dicts, or pandas DataFrame — new data
+        old: CSV/Parquet path, dict, list of dicts, or pandas DataFrame — baseline
+        new: CSV/Parquet path, dict, list of dicts, or pandas DataFrame — new data
         output: optional file path (.json, .txt, .html)
         columns: optional list — compare only these columns
         ignore_columns: optional list — skip these columns

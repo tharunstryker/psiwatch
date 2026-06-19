@@ -1,6 +1,7 @@
 """
 loader.py — Handles all input modes for psiwatch.
-Supports: CSV file paths, Python dicts, Python lists, pandas DataFrames.
+Supports: CSV file paths, Parquet file paths, Python dicts, Python lists,
+pandas DataFrames, and SQL query results (via a user-supplied DB-API connection).
 
 FIX: resolve_input now accepts lists directly via compare() without needing compare_columns().
 FIX: detect_type is explicit about ambiguous columns.
@@ -27,6 +28,80 @@ def load_csv(filepath):
         for key, val in row.items():
             if val is not None:
                 columns[key].append(val.strip())
+
+    return columns
+
+
+def load_parquet(filepath):
+    """
+    Load a Parquet file and return a dict of column_name -> list of values.
+
+    Requires pandas + pyarrow (or fastparquet) to be installed — these are
+    optional extras, not core dependencies. psiwatch itself stays
+    zero-dependency for anyone who doesn't need Parquet support.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError(
+            "Reading Parquet files requires pandas and a parquet engine. "
+            "Install with: pip install pandas pyarrow"
+        )
+
+    try:
+        df = pd.read_parquet(filepath)
+    except ImportError:
+        raise ImportError(
+            "Reading Parquet files requires a parquet engine. "
+            "Install with: pip install pyarrow"
+        )
+
+    if df.empty:
+        raise ValueError(f"Empty file: {filepath}")
+
+    return load_dataframe(df)
+
+
+def load_sql(query, connection):
+    """
+    Run a SQL query against a user-supplied DB-API connection and return a
+    dict of column_name -> list of values.
+
+    psiwatch does NOT manage database drivers or credentials — bring your own
+    connection (sqlite3, psycopg2, pymysql, mysql-connector, etc., or a
+    SQLAlchemy connection/engine.connect() result). Any object exposing a
+    standard DB-API .cursor() works.
+
+    Example:
+        import sqlite3
+        conn = sqlite3.connect("mydb.sqlite")
+        baseline = load_sql("SELECT * FROM users WHERE month = 'jan'", conn)
+        new = load_sql("SELECT * FROM users WHERE month = 'feb'", conn)
+    """
+    if not query or not isinstance(query, str):
+        raise TypeError("Expected a SQL query string")
+
+    cursor = connection.cursor()
+    try:
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        if cursor.description is None:
+            raise ValueError("Query returned no column metadata (not a SELECT?)")
+        col_names = [d[0] for d in cursor.description]
+    finally:
+        cursor.close()
+
+    if not rows:
+        raise ValueError("Query returned no rows")
+
+    columns = {name: [] for name in col_names}
+    for row in rows:
+        for name, val in zip(col_names, row):
+            if val is not None:
+                columns[name].append(str(val))
 
     return columns
 
@@ -96,6 +171,8 @@ def resolve_input(source, column_name="column"):
     FIX: lists now work via compare() directly, not just compare_columns().
     """
     if isinstance(source, str):
+        if source.lower().endswith(('.parquet', '.pq')):
+            return load_parquet(source)
         return load_csv(source)
     elif isinstance(source, dict):
         return load_dict(source)
