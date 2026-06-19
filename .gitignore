@@ -8,3 +8,5 @@ __pycache__/
 drift_report.*
 test_output.txt
 test_full.py
+tmp_test_files/
+test_v0_12_0_fixes.py
