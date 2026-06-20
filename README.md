@@ -659,6 +659,8 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 ### v0.12.2
 - **Added:** Parquet file support — `compare()`, `analyze()`, and the CLI `compare` command now accept `.parquet`/`.pq` file paths anywhere a CSV path is accepted, auto-detected by extension. Requires `pandas` + `pyarrow` to be installed (optional — psiwatch's core stays zero-dependency).
 - **Added:** `load_sql(query, connection)` in `psiwatch.loader` — run a SQL query against any DB-API connection you already have open (`sqlite3`, `psycopg2`, `pymysql`, SQLAlchemy, etc.) and feed the result straight into `compare_data()`. psiwatch does not bundle or require any DB driver — bring your own connection.
+- **Fixed:** values like `"NaN"`, `"inf"`, `"-Infinity"` were silently accepted by `float()` and could crash `compare()`/`analyze()` downstream during PSI binning. `cast_numeric()` now explicitly rejects NaN/infinity, treating them the same as any other unparseable value.
+- **Fixed:** numeric columns with non-numeric/garbage values (including the NaN/inf case above) were silently dropped with no indication anywhere in the report — `new_count` would just be smaller than expected. A warning now reports exactly how many values (and what %) were excluded, on both the baseline and new side.
 
 ### v0.12.1
 - **Fixed:** package metadata in `pyproject.toml` — corrected author name/email and switched `license` to the SPDX-string format expected by current packaging tooling. No code changes.

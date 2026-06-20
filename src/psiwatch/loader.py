@@ -8,6 +8,7 @@ FIX: detect_type is explicit about ambiguous columns.
 """
 
 import csv
+import math
 import os
 
 
@@ -153,13 +154,24 @@ def _try_float(v):
 
 
 def cast_numeric(values):
-    """Convert string list to floats, skipping blanks/invalid."""
+    """
+    Convert string list to floats, skipping blanks/invalid.
+
+    FIX: float() happily parses the strings "nan", "NaN", "inf", "-Infinity",
+    etc. into real NaN/inf values — these used to silently pass through and
+    later crash PSI binning (int(nan) raises ValueError) or poison
+    mean/std/percentile calculations. They're now treated the same as any
+    other unparseable value and excluded.
+    """
     result = []
     for v in values:
         try:
-            result.append(float(v))
+            f = float(v)
         except (ValueError, TypeError):
-            pass
+            continue
+        if math.isnan(f) or math.isinf(f):
+            continue
+        result.append(f)
     return result
 
 

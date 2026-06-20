@@ -122,6 +122,18 @@ v0.12.2 → loader.py: added Parquet file support — compare()/analyze()/CLI `c
            already opened (sqlite3, psycopg2, pymysql, SQLAlchemy, etc.) and feed the result
            straight into compare_data(). No bundled DB driver, no credential handling —
            bring your own connection.
+
+           Bug fixes found during issue hunt, same release:
+           - cast_numeric() used bare float(), which accepts the strings "NaN"/"inf"/
+             "-Infinity" as valid floats. These crashed analyze_numeric()'s PSI binning
+             downstream (int(nan) raises ValueError) — a single "NaN" string in a numeric
+             column could kill the whole compare() call. Now explicitly rejected like any
+             other unparseable value.
+           - Non-numeric values dropped by cast_numeric (garbage, blanks, the NaN/inf case
+             above) were silently excluded with zero indication in the report — new_count
+             would just be smaller than the row count with no explanation. Added a warning
+             that fires when >5% of either baseline or new values get dropped, stating
+             exactly how many/what % were excluded.
 ```
 
 ---

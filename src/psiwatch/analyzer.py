@@ -259,10 +259,25 @@ def analyze_numeric(baseline_raw, new_raw, thresholds=None, baseline_summary=Non
     t = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     new = cast_numeric(new_raw)
 
+    # Detect values silently dropped by cast_numeric (non-numeric junk,
+    # blanks, etc.) — without this, a column that's mostly garbage just
+    # shows a small new_count with no explanation anywhere in the report.
+    new_dropped_warning = None
+    if new_raw:
+        dropped = len(new_raw) - len(new)
+        if dropped > 0 and dropped / len(new_raw) > 0.05:
+            new_dropped_warning = (
+                f"{dropped} of {len(new_raw)} new values ({dropped/len(new_raw)*100:.0f}%) "
+                f"could not be parsed as numeric and were excluded from analysis"
+            )
+
     if baseline_summary is not None:
         b_count = baseline_summary["count"]
         if b_count < 2 or len(new) < 2:
-            return {"severity": "UNKNOWN", "reasons": ["Insufficient numeric data"], "metrics": {}, "warnings": []}
+            result = {"severity": "UNKNOWN", "reasons": ["Insufficient numeric data"], "metrics": {}, "warnings": []}
+            if new_dropped_warning:
+                result["warnings"].append(new_dropped_warning)
+            return result
         b_mean, b_std = baseline_summary["mean"], baseline_summary["std"]
         b_min, b_p25, b_median, b_p75, b_max = (
             baseline_summary["min"], baseline_summary["p25"],
@@ -271,8 +286,20 @@ def analyze_numeric(baseline_raw, new_raw, thresholds=None, baseline_summary=Non
     else:
         baseline = cast_numeric(baseline_raw)
         b_count = len(baseline)
+        if baseline_raw:
+            b_dropped = len(baseline_raw) - b_count
+            if b_dropped > 0 and b_dropped / len(baseline_raw) > 0.05:
+                new_dropped_warning = (
+                    (new_dropped_warning + " | " if new_dropped_warning else "") +
+                    f"{b_dropped} of {len(baseline_raw)} baseline values "
+                    f"({b_dropped/len(baseline_raw)*100:.0f}%) could not be parsed "
+                    f"as numeric and were excluded from analysis"
+                )
         if b_count < 2 or len(new) < 2:
-            return {"severity": "UNKNOWN", "reasons": ["Insufficient numeric data"], "metrics": {}, "warnings": []}
+            result = {"severity": "UNKNOWN", "reasons": ["Insufficient numeric data"], "metrics": {}, "warnings": []}
+            if new_dropped_warning:
+                result["warnings"].append(new_dropped_warning)
+            return result
         b_mean, b_std = _mean(baseline), _std(baseline)
         b_min = min(baseline)
         b_p25 = _percentile(baseline, 25)
@@ -286,6 +313,8 @@ def analyze_numeric(baseline_raw, new_raw, thresholds=None, baseline_summary=Non
     severity = "PASS"
     metrics = {}
     warnings = []
+    if new_dropped_warning:
+        warnings.append(new_dropped_warning)
 
     # Sample size warning
     ratio = max(b_count, len(new)) / max(min(b_count, len(new)), 1)
