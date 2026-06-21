@@ -15,6 +15,7 @@ Commands:
 """
 
 import argparse
+import json
 import sys
 import os
 from . import compare, analyze, DriftDetected, __version__
@@ -84,6 +85,31 @@ def _trend_command(args):
         sys.exit(1)
 
     output_trend(result, output=getattr(args, "output", None))
+
+
+def _learn_thresholds_command(args):
+    from .adapt import learn_thresholds, save_thresholds, print_learned_thresholds
+
+    if not args.files and not args.directory:
+        print("  ERROR: learn-thresholds requires file paths and/or --dir")
+        sys.exit(1)
+
+    try:
+        result = learn_thresholds(
+            files=args.files or None,
+            directory=args.directory,
+            pattern=args.pattern,
+            columns=_parse_list(args.columns),
+            ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
+            sensitivity=args.sensitivity,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        print(f"\n  ERROR: {e}")
+        sys.exit(1)
+
+    print_learned_thresholds(result)
+    save_thresholds(result, args.output)
+    print(f"  Saved → {args.output}\n")
 
 
 def _watch_command(args):
@@ -180,6 +206,8 @@ Examples:
                     default=None, help="Output format to stdout")
     cp.add_argument("--webhook", "-w", default=None,
                     help="Send alert to webhook after compare")
+    cp.add_argument("--thresholds-file", default=None,
+                    help="Use per-column learned thresholds from learn-thresholds")
 
     # ── summary ──
     sp = sub.add_parser("summary", help="One-line health score")
@@ -196,6 +224,22 @@ Examples:
     tp.add_argument("--columns", "-c", default=None)
     tp.add_argument("--ignore-columns", "-x", default=None)
     tp.add_argument("--psi-threshold", type=float, default=None)
+
+    # ── learn-thresholds ──
+    ltp = sub.add_parser("learn-thresholds",
+                          help="Learn per-column drift thresholds from historical snapshots")
+    ltp.add_argument("files", nargs="*", default=[],
+                      help="CSV files, chronological order (at least 2, unless --dir is used)")
+    ltp.add_argument("--dir", dest="directory", default=None,
+                      help="Folder of snapshot files to include (sorted by filename)")
+    ltp.add_argument("--pattern", default="*.csv",
+                      help="Glob pattern used with --dir (default: *.csv)")
+    ltp.add_argument("--output", "-o", default="psiwatch_thresholds.json",
+                      help="Where to save learned thresholds (default: psiwatch_thresholds.json)")
+    ltp.add_argument("--sensitivity", type=float, default=3.0,
+                      help="mean + N*std multiplier — higher = more lenient (default: 3.0)")
+    ltp.add_argument("--columns", "-c", default=None)
+    ltp.add_argument("--ignore-columns", "-x", default=None)
 
     # ── watch ──
     wp = sub.add_parser("watch", help="Monitor a directory for new CSV files")
@@ -274,6 +318,10 @@ Examples:
         _trend_command(args)
         return
 
+    if args.command == "learn-thresholds":
+        _learn_thresholds_command(args)
+        return
+
     if args.command == "watch":
         _watch_command(args)
         return
@@ -329,16 +377,34 @@ Examples:
             _using_tmp = True
 
         try:
-            result = compare(
-                args.old, args.new,
-                output=output_path,
-                columns=_parse_list(args.columns),
-                ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
-                psi_threshold=args.psi_threshold,
-                fail_on_drift=args.fail_on_drift,
-                silent_update=getattr(args, "silent", False),
-                silent_save=_using_tmp,
-            )
+            if getattr(args, "thresholds_file", None):
+                from .adapt import compare_with_learned_thresholds
+                result = compare_with_learned_thresholds(
+                    args.old, args.new, args.thresholds_file,
+                    columns=_parse_list(args.columns),
+                    ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
+                )
+                print(f"\n  Adaptive thresholds used for: "
+                      f"{', '.join(result['adaptive_columns']) or '(none matched)'}")
+                print(f"  Health Score: {result['health_score']}/100")
+                print(f"  Drifted columns: {result['summary']['drifted_columns'] or 'none'}\n")
+                if output_path:
+                    with open(output_path, "w", encoding="utf-8") as f:
+                        json.dump(result, f, indent=2)
+                    print(f"  Saved → {output_path}\n")
+                if args.fail_on_drift and result["health_score"] < 80:
+                    sys.exit(1)
+            else:
+                result = compare(
+                    args.old, args.new,
+                    output=output_path,
+                    columns=_parse_list(args.columns),
+                    ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
+                    psi_threshold=args.psi_threshold,
+                    fail_on_drift=args.fail_on_drift,
+                    silent_update=getattr(args, "silent", False),
+                    silent_save=_using_tmp,
+                )
 
             if fmt and fmt != "terminal" and output_path and not args.output:
                 import sys as _sys

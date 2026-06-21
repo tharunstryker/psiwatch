@@ -583,6 +583,7 @@ psiwatch/
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
 │   ├── loader.py        ← CSV, Parquet, SQL, dict, list, DataFrame input
+│   ├── adapt.py          ← learn-thresholds: per-column learned PSI thresholds
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
 │   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
@@ -655,6 +656,15 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 ---
 
 ## Changelog
+
+### v0.13.0
+- **Added:** `psiwatch learn-thresholds` — learns a per-column PSI threshold from a sequence of historical "normal" snapshots, instead of using one fixed global threshold for every column. Columns with naturally higher variance get a more lenient learned threshold; naturally stable columns keep a tight one. Uses `mean + sensitivity*std` over historical PSI (default sensitivity 3.0), clamped between 0.125 and 0.75 so it can never become dangerously lenient or impractically strict. Saves to a JSON file (default `psiwatch_thresholds.json`).
+  - `psiwatch learn-thresholds day1.csv day2.csv ... --output thresholds.json`
+  - `psiwatch learn-thresholds --dir history/ --output thresholds.json`
+  - `psiwatch compare new_base.csv new_data.csv --thresholds-file thresholds.json`
+  - **Scope note:** only the PSI threshold is learned/adapted. `mean_shift_high`/`std_shift_high` and other checks still use the global default — severity is the worst of all checks combined, so a column can still be flagged HIGH via a real mean/std shift even when its learned PSI threshold says PSI itself is within normal historical range.
+  - **Data size note:** PSI is sensitive to sample size — snapshots under ~500 rows can produce learned thresholds that don't make intuitive sense (a tightly-distributed column can appear noisier than a widely-distributed one purely from bin-edge sensitivity at low N). `learn-thresholds` warns when any snapshot is under 500 rows.
+- **Added:** runnable Java and JavaScript examples (`docs/examples/`) showing how to call the `psiwatch` CLI as a subprocess and parse its JSON report — no psiwatch code changes needed, since this already worked for any language capable of running a subprocess and parsing JSON. See `docs/java-interop.md`.
 
 ### v0.12.2
 - **Added:** Parquet file support — `compare()`, `analyze()`, and the CLI `compare` command now accept `.parquet`/`.pq` file paths anywhere a CSV path is accepted, auto-detected by extension. Requires `pandas` + `pyarrow` to be installed (optional — psiwatch's core stays zero-dependency).

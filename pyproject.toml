@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiwatch"
-version = "0.12.2"
+version = "0.13.0"
 description = "A zero-dependency Python library and CLI for detecting dataset drift in ML pipelines."
 authors = [{ name = "tharunstryker", email = "tharunstryker@gmail.com" }]
 readme = "README.md"

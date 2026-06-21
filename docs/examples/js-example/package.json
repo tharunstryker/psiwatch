@@ -1,0 +1,10 @@
+{
+  "name": "psiwatch-js-example",
+  "version": "1.0.0",
+  "description": "Example: calling the psiwatch CLI from Node.js and reading its JSON report.",
+  "main": "drift-check.js",
+  "scripts": {
+    "start": "node drift-check.js train.csv new.csv"
+  },
+  "dependencies": {}
+}

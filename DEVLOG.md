@@ -134,6 +134,36 @@ v0.12.2 → loader.py: added Parquet file support — compare()/analyze()/CLI `c
              would just be smaller than the row count with no explanation. Added a warning
              that fires when >5% of either baseline or new values get dropped, stating
              exactly how many/what % were excluded.
+v0.13.0 → New module adapt.py: learn_thresholds()/save_thresholds()/load_thresholds()/
+           compare_with_learned_thresholds(). Learns a per-column PSI threshold from a
+           sequence of historical snapshots (mean + sensitivity*std over historical PSI,
+           clamped 0.125-0.75) instead of one fixed global threshold for every column.
+           CLI: `psiwatch learn-thresholds file1.csv file2.csv ... [--dir X] [--output Y]`
+           and `psiwatch compare a.csv b.csv --thresholds-file thresholds.json`.
+
+           Found during testing (kept here as a real lesson, not swept under the rug):
+           first test run showed a "stable" column learning a HIGHER threshold than a
+           "noisy" column — backwards from intuition. Root cause: PSI's bin-edge
+           sensitivity at small sample sizes (~200 rows) can make a tightly-distributed
+           column's PSI bounce around more than a widely-distributed one's, purely from
+           sampling noise interacting with bin width — nothing wrong with the learning
+           math itself. Confirmed by rerunning with 5000+ rows per snapshot, where both
+           columns correctly converged near zero. Added a warning in learn_thresholds()
+           when any snapshot has under ~500 rows, so this surprises the user honestly
+           instead of silently producing thresholds that don't make sense.
+
+           Also confirmed a real scope boundary: only psi_high/psi_medium are learned and
+           overridden per column — mean_shift_high/std_shift_high stay at global defaults.
+           Severity is the worst of all checks combined, so a column can still hit HIGH via
+           a real mean/std shift even when its learned PSI threshold says PSI is normal for
+           that column. Documented in adapt.py's docstring and the CLI help, not hidden.
+
+           Also added: docs/examples/ — runnable Java (DriftCheck.java, zero external
+           dependencies, regex-based JSON field extraction) and Node.js (drift-check.js)
+           examples calling the psiwatch CLI as a subprocess and reading its JSON report.
+           No psiwatch source changes needed for this — works the same as any CLI tool
+           being called from any language. Tested for real on Termux (Android/ARM) with
+           Node and OpenJDK 17 — both ran correctly end-to-end against real psiwatch output.
 ```
 
 ---
