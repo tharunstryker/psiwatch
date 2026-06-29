@@ -1,5 +1,7 @@
 # psiwatch
 
+**Current version: 0.14.0**
+
 **Zero-dependency Python library for dataset drift detection in ML pipelines.**
 
 Detect covariate drift, distribution shift, and data quality degradation between two datasets — using PSI, Chi-Square, Mean Shift, and Standard Deviation analysis. Pure Python. No numpy. No scipy. No pandas required.
@@ -584,6 +586,7 @@ psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
 │   ├── loader.py        ← CSV, Parquet, SQL, dict, list, DataFrame input
 │   ├── adapt.py          ← learn-thresholds: per-column learned PSI thresholds
+│   ├── viz.py            ← optional matplotlib chart export (psiwatch[charts])
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
 │   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
@@ -656,6 +659,20 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 ---
 
 ## Changelog
+
+### v0.14.0
+- **Added:** `psiwatch.viz.plot_drift()` — real baseline-vs-new histogram overlay charts (numeric columns) and category frequency comparisons (categorical columns), saved as a PNG/PDF/SVG. Built from the exact same binned histogram data PSI itself uses — not an approximation from summary stats.
+  - `psiwatch compare old.csv new.csv --plot drift.png`
+  - `psiwatch compare old.csv new.csv --plot drift.png --plot-style seaborn-v0_8-darkgrid`
+  - Python: `from psiwatch.viz import plot_drift; plot_drift("old.csv", "new.csv", output="drift.png")`
+  - Customization: `title=` and `dpi=` params (`plot_drift(..., title="Q3 Sales Drift", dpi=200)`) for presentation-ready output.
+  - **Requires `matplotlib`** — install with `pip install psiwatch[charts]` or `pip install matplotlib`. This is the one deliberate exception to psiwatch's zero-dependency core: matplotlib is imported lazily *inside* `plot_drift()`/`plot_drift_bytes()` only, never at module load, so `import psiwatch` and every other feature remain fully dependency-free regardless of whether matplotlib is installed.
+  - **No seaborn dependency, by design:** modern matplotlib ships several seaborn-derived style sheets built in (`seaborn-v0_8`, `seaborn-v0_8-darkgrid`, etc. — see `--plot-style`), so you get seaborn's visual look without psiwatch importing seaborn itself. If you want actual seaborn-specific plot types for your own custom analysis, install seaborn yourself and work with psiwatch's result data directly — psiwatch doesn't broker that.
+- **Added:** `--embed-chart` — embeds the drift chart directly into an HTML report as an inline base64 image, instead of a separate chart file to keep track of alongside the report.
+  - `psiwatch compare old.csv new.csv --output report.html --embed-chart`
+  - Python: `psiwatch.compare(old, new, output="report.html", embed_chart=True)`
+  - Silently ignored (no error) if `--output` isn't `.html`, or if no `--output` is given at all — only raises if you actually requested embedding and matplotlib is missing.
+  - Uses a new `psiwatch.viz.plot_drift_bytes()` that returns PNG bytes in memory rather than writing a file, sharing the same chart-building logic as `plot_drift()` (no duplicated drawing code between the file and embedded paths).
 
 ### v0.13.0
 - **Added:** `psiwatch learn-thresholds` — learns a per-column PSI threshold from a sequence of historical "normal" snapshots, instead of using one fixed global threshold for every column. Columns with naturally higher variance get a more lenient learned threshold; naturally stable columns keep a tight one. Uses `mean + sensitivity*std` over historical PSI (default sensitivity 3.0), clamped between 0.125 and 0.75 so it can never become dangerously lenient or impractically strict. Saves to a JSON file (default `psiwatch_thresholds.json`).

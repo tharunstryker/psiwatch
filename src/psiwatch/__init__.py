@@ -57,7 +57,7 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
@@ -117,7 +117,7 @@ def _source_label(old, new):
 
 def compare(old, new, output=None, columns=None, ignore_columns=None,
             psi_threshold=None, thresholds=None, fail_on_drift=False,
-            silent_update=False, silent_save=False):
+            silent_update=False, silent_save=False, embed_chart=False):
     """
     Compare two datasets and print or save a drift report.
 
@@ -134,6 +134,10 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
             banner no longer runs from library code (compare/analyze/etc) —
             it only fires from the `psiwatch` CLI, gated by --silent there.
             Kept here only so existing calls with silent_update=... don't break.
+        embed_chart: if True and output ends in .html, embeds a baseline-vs-new
+            histogram chart directly into the report (base64 PNG, no separate
+            file). Requires matplotlib (pip install psiwatch[charts]) — raises
+            ImportError if missing. Ignored for non-HTML output formats.
 
     Returns:
         dict — keys: 'columns', 'health_score', 'warnings', 'summary'
@@ -144,7 +148,14 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
     result = _analyze(baseline, current, columns=columns,
                       ignore_columns=ignore_columns, thresholds=t)
     source_info = _source_label(old, new)
-    output_report(result, output=output, source_info=source_info, silent=silent_save)
+
+    chart_bytes = None
+    if embed_chart and output and output.lower().endswith(".html"):
+        from .viz import plot_drift_bytes
+        chart_bytes = plot_drift_bytes(old, new, columns=columns, ignore_columns=ignore_columns)
+
+    output_report(result, output=output, source_info=source_info,
+                  silent=silent_save, embed_chart=chart_bytes)
 
     if fail_on_drift and result["health_score"] < 80:
         high_cols = [c for c, r in result["columns"].items() if r["severity"] == "HIGH"]

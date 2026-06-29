@@ -164,6 +164,64 @@ v0.13.0 → New module adapt.py: learn_thresholds()/save_thresholds()/load_thres
            No psiwatch source changes needed for this — works the same as any CLI tool
            being called from any language. Tested for real on Termux (Android/ARM) with
            Node and OpenJDK 17 — both ran correctly end-to-end against real psiwatch output.
+v0.14.0 → New module viz.py: plot_drift(old, new, columns=None, output="drift_chart.png",
+           style=None). Draws real histogram overlays (numeric) and frequency bar charts
+           (categorical), baseline vs new, one panel per column in a grid. CLI:
+           `psiwatch compare a.csv b.csv --plot chart.png [--plot-style seaborn-v0_8-darkgrid]`.
+
+           Deliberate one-time exception to the zero-dependency core: requires matplotlib,
+           via new `psiwatch[charts]` extras group in pyproject.toml. matplotlib is imported
+           LAZILY inside plot_drift() only (_require_matplotlib() helper) — confirmed by
+           actually blocking sys.modules['matplotlib'] = None and verifying `import psiwatch`
+           plus every existing feature still works with zero errors. Only calling plot_drift()
+           itself raises (a clear ImportError naming the pip command) if matplotlib is absent.
+
+           Deliberately does NOT import or depend on seaborn at all. plot_drift()'s `style`
+           param just selects one of matplotlib's built-in style sheets, several of which
+           are seaborn-derived (seaborn-v0_8, seaborn-v0_8-darkgrid, etc.) — gets seaborn's
+           visual look with one less dependency. Anyone wanting actual seaborn plot types
+           can install it themselves and use psiwatch's data directly; psiwatch doesn't
+           broker that.
+
+           Important design choice: plot_drift() takes the same raw old/new inputs as
+           compare(), NOT a result dict — analyze()/compare() results only store summary
+           stats (mean/std/percentiles), not raw values, so there's no real distribution
+           shape to plot from a result dict alone. Approximating a shape from just mean+std
+           would draw a normal curve regardless of the real data's shape, which could
+           mislead. plot_drift() reuses analyzer.build_numeric_histogram() directly — same
+           binning PSI itself uses, so the chart matches the number, not a separate calc.
+
+           Tested in-sandbox with real matplotlib (numeric + categorical columns together,
+           5-column grid layout incl. correct empty-cell hiding, seaborn-v0_8-darkgrid style
+           applied correctly, insufficient-data column handled gracefully with no crash,
+           invalid style name raises ValueError, missing-overlap-columns raises ValueError)
+           — all charts visually inspected, not just "ran without crashing."
+
+           Enhancement pass, same version (not yet published, so no separate bump):
+           - plot_drift() refactored: figure-building logic extracted into a shared
+             _build_figure() helper, used by both plot_drift() (file output) and the
+             new plot_drift_bytes() (in-memory PNG bytes). Added title= and dpi= params
+             to plot_drift() for presentation-ready customization.
+           - New plot_drift_bytes(): same chart, returns PNG bytes instead of writing a
+             file. Returns None (not a raise) when there's nothing to plot, since this is
+             meant to be a best-effort addition to a report, not something that should
+             fail the whole compare() call.
+           - HTML embedding: reporter.to_html() takes a new embed_chart=<bytes> param,
+             base64-encodes it inline as a <img src="data:image/png;base64,...">, placed
+             between the summary stats and the per-column detail cards. compare() gained
+             embed_chart=True/False — when True and output ends in .html, calls
+             plot_drift_bytes() internally and passes the result through output_report().
+             CLI: `psiwatch compare a.csv b.csv --output report.html --embed-chart`.
+           - Verified: rendered the actual HTML output with wkhtmltoimage and visually
+             confirmed the embedded chart displays correctly inline, styled consistently
+             with the existing dark-theme report (not just "the base64 string is present").
+           - Re-ran the matplotlib-blocked safety check after all this wiring (compare(),
+             cli.py, reporter.py all touched) — import psiwatch and every existing feature,
+             including HTML output without embed_chart, still work with zero errors when
+             matplotlib is completely unavailable. embed_chart=True specifically raises a
+             clear ImportError only when actually requested and matplotlib is missing.
+           - --embed-chart with non-.html output, or no --output at all: silently ignored,
+             no error — confirmed both paths exit 0.
 ```
 
 ---

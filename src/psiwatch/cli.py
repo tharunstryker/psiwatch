@@ -208,6 +208,14 @@ Examples:
                     help="Send alert to webhook after compare")
     cp.add_argument("--thresholds-file", default=None,
                     help="Use per-column learned thresholds from learn-thresholds")
+    cp.add_argument("--plot", default=None,
+                    help="Save a baseline-vs-new histogram chart (requires matplotlib: "
+                         "pip install psiwatch[charts])")
+    cp.add_argument("--plot-style", default=None,
+                    help="Matplotlib style for --plot, e.g. seaborn-v0_8-darkgrid")
+    cp.add_argument("--embed-chart", action="store_true",
+                    help="Embed a baseline-vs-new chart directly into the HTML report "
+                         "(requires --output *.html and matplotlib: pip install psiwatch[charts])")
 
     # ── summary ──
     sp = sub.add_parser("summary", help="One-line health score")
@@ -404,6 +412,7 @@ Examples:
                     fail_on_drift=args.fail_on_drift,
                     silent_update=getattr(args, "silent", False),
                     silent_save=_using_tmp,
+                    embed_chart=getattr(args, "embed_chart", False),
                 )
 
             if fmt and fmt != "terminal" and output_path and not args.output:
@@ -417,6 +426,18 @@ Examples:
                 from .webhook import send_webhook
                 send_webhook(args.webhook, result,
                              source_info=f"{args.old} → {args.new}")
+
+            # Optional chart export
+            if getattr(args, "plot", None):
+                from .viz import plot_drift
+                chart_path = plot_drift(
+                    args.old, args.new,
+                    columns=_parse_list(args.columns),
+                    ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
+                    output=args.plot,
+                    style=getattr(args, "plot_style", None),
+                )
+                print(f"  Chart saved → {chart_path}\n")
 
         except DriftDetected as e:
             print(f"\n  [FAIL] {e}")
