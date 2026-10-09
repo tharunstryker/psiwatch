@@ -43,6 +43,8 @@ def _summary_command(args):
             columns=_parse_list(args.columns),
             ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
             psi_threshold=args.psi_threshold,
+            text_columns=_parse_list(getattr(args, "text_columns", None)),
+            detect_text=not getattr(args, "no_text_detect", False),
         )
     except (FileNotFoundError, ValueError) as e:
         print(f"\n  ERROR: {e}")
@@ -79,6 +81,8 @@ def _trend_command(args):
             ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
             psi_threshold=args.psi_threshold,
             baseline=getattr(args, "baseline_mode", "previous"),
+            text_columns=_parse_list(getattr(args, "text_columns", None)),
+            detect_text=not getattr(args, "no_text_detect", False),
         )
     except (FileNotFoundError, ValueError) as e:
         print(f"\n  ERROR: {e}")
@@ -166,6 +170,7 @@ Examples:
   psiwatch watch data/ --lock train.lock.json --once
   psiwatch watch data/ --webhook https://hooks.slack.com/... --fail-on-drift
   psiwatch lock train.csv && psiwatch check new.csv --fail-on-drift
+  psiwatch compare chats_jan.csv chats_feb.csv --text-columns message
   psiwatch init
         """
     )
@@ -191,6 +196,11 @@ Examples:
                        help="Comma-separated columns to compare")
         p.add_argument("--ignore-columns", "-x", default=None,
                        help="Comma-separated columns to skip")
+        p.add_argument("--text-columns", default=None,
+                       help="Comma-separated columns to force as free text "
+                            "(text is also auto-detected)")
+        p.add_argument("--no-text-detect", action="store_true", default=False,
+                       help="Disable free-text auto-detection (pre-0.15 behaviour)")
         p.add_argument("--psi-threshold", type=float, default=None, metavar="FLOAT")
         p.add_argument("--fail-on-drift", action="store_true", default=False,
                        help="Exit code 1 if drift detected")
@@ -232,6 +242,10 @@ Examples:
     tp.add_argument("--columns", "-c", default=None)
     tp.add_argument("--ignore-columns", "-x", default=None)
     tp.add_argument("--psi-threshold", type=float, default=None)
+    tp.add_argument("--text-columns", default=None,
+                    help="Comma-separated columns to force as free text")
+    tp.add_argument("--no-text-detect", action="store_true", default=False,
+                    help="Disable free-text auto-detection")
 
     # ── learn-thresholds ──
     ltp = sub.add_parser("learn-thresholds",
@@ -272,6 +286,10 @@ Examples:
     lp.add_argument("file", help="CSV to lock")
     lp.add_argument("--output", "-o", default="psiwatch.lock.json")
     lp.add_argument("--columns", "-c", default=None)
+    lp.add_argument("--text-columns", default=None,
+                    help="Comma-separated columns to force as free text")
+    lp.add_argument("--no-text-detect", action="store_true", default=False,
+                    help="Disable free-text auto-detection")
 
     # ── check ──
     ckp = sub.add_parser("check", help="Compare a CSV against a lock file")
@@ -338,7 +356,9 @@ Examples:
         from .locker import save_lock
         try:
             save_lock(args.file, lock_path=args.output,
-                      columns=_parse_list(args.columns))
+                      columns=_parse_list(args.columns),
+                      text_columns=_parse_list(getattr(args, "text_columns", None)),
+                      detect_text=not getattr(args, "no_text_detect", False))
         except FileNotFoundError as e:
             print(f"\n  ERROR: {e}")
             sys.exit(1)
@@ -413,6 +433,8 @@ Examples:
                     silent_update=getattr(args, "silent", False),
                     silent_save=_using_tmp,
                     embed_chart=getattr(args, "embed_chart", False),
+                    text_columns=_parse_list(getattr(args, "text_columns", None)),
+                    detect_text=not getattr(args, "no_text_detect", False),
                 )
 
             if fmt and fmt != "terminal" and output_path and not args.output:
@@ -436,6 +458,8 @@ Examples:
                     ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
                     output=args.plot,
                     style=getattr(args, "plot_style", None),
+                    text_columns=_parse_list(getattr(args, "text_columns", None)),
+                    detect_text=not getattr(args, "no_text_detect", False),
                 )
                 print(f"  Chart saved → {chart_path}\n")
 

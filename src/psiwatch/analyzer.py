@@ -22,6 +22,7 @@ v0.12.0 fixes:
 
 import math
 from .loader import detect_type, cast_numeric
+from .text import analyze_text, build_text_summary
 
 
 # ─── Math Utilities ───────────────────────────────────────────────────────────
@@ -216,6 +217,14 @@ DEFAULT_THRESHOLDS = {
     "std_shift_high": 0.5,
     "category_share_shift": 0.15,
     "chi_square_medium": 0.5,
+    # Free-text columns (v0.15.0) — see text.py
+    "text_jsd_medium": 0.005,        # noise-corrected Jensen-Shannon divergence, bits
+    "text_jsd_high": 0.04,
+    "text_oov_medium": 0.10,         # excess share of words unseen in baseline
+    "text_oov_high": 0.25,
+    "text_script_shift_medium": 0.15,  # share of values moving between writing systems
+    "text_script_shift_high": 0.30,
+    "text_structure_shift": 0.10,    # empty/duplicate/URL/digit/upper/symbol rates (MEDIUM max)
 }
 
 
@@ -490,7 +499,8 @@ def analyze_categorical(baseline_raw, new_raw, thresholds=None, baseline_summary
 # ─── Main Analyze ─────────────────────────────────────────────────────────────
 
 def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
-            thresholds=None, baseline_summaries=None):
+            thresholds=None, baseline_summaries=None,
+            text_columns=None, detect_text=True):
     """
     Compare baseline and new column dicts.
 
@@ -504,9 +514,14 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
         ignore_columns: optional list — skip these columns
         thresholds: optional dict of threshold overrides
         baseline_summaries: optional dict of column_name -> {"type": ...,
-            "summary": build_numeric_summary()/build_categorical_summary() result}.
+            "summary": build_numeric_summary()/build_categorical_summary()/
+            build_text_summary() result}.
             When a column is present here, it's compared using the summary
             instead of raw baseline values.
+        text_columns: optional list — force these columns to be analysed as
+            free text (overrides auto-detection).
+        detect_text: auto-detect free-text columns (default True). Set False
+            to restore pre-0.15 behaviour (text treated as categorical).
 
     Returns dict with:
         'columns': per-column analysis
@@ -544,6 +559,11 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
         if ignored:
             warnings.append(f"Columns ignored by request: {sorted(ignored & (baseline_keys | new_keys))}")
 
+    forced_text = set(text_columns or [])
+    unknown_forced = forced_text - (baseline_keys | new_keys)
+    if unknown_forced:
+        warnings.append(f"text_columns not found in data (ignored): {sorted(unknown_forced)}")
+
     results = {}
     for col in sorted(common):
         col_summary_entry = baseline_summaries.get(col)
@@ -555,18 +575,26 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
                     None, new_cols[col], thresholds=thresholds,
                     baseline_summary=col_summary_entry["summary"],
                 )
+            elif col_type == "text":
+                result = analyze_text(
+                    None, new_cols[col], thresholds=thresholds,
+                    baseline_summary=col_summary_entry["summary"],
+                )
             else:
                 result = analyze_categorical(
                     None, new_cols[col], thresholds=thresholds,
                     baseline_summary=col_summary_entry["summary"],
                 )
         else:
-            col_type = detect_type(baseline_cols[col])
+            if col in forced_text:
+                col_type = "text"
+            else:
+                col_type = detect_type(baseline_cols[col], allow_text=detect_text)
 
             # Mixed-type warning: 50-80% numeric
             numeric_ratio = sum(1 for v in baseline_cols[col] if _is_numeric(v)) / max(len(baseline_cols[col]), 1)
             type_warning = None
-            if 0.5 < numeric_ratio < 0.8:
+            if col_type != "text" and 0.5 < numeric_ratio < 0.8:
                 type_warning = (
                     f"Column '{col}' is {numeric_ratio*100:.0f}% numeric — "
                     f"treated as categorical. Cast to float if intended as numeric."
@@ -574,6 +602,8 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
 
             if col_type == "numeric":
                 result = analyze_numeric(baseline_cols[col], new_cols[col], thresholds=thresholds)
+            elif col_type == "text":
+                result = analyze_text(baseline_cols[col], new_cols[col], thresholds=thresholds)
             else:
                 result = analyze_categorical(baseline_cols[col], new_cols[col], thresholds=thresholds)
 

@@ -685,3 +685,36 @@ This project was built on an Android phone using Termux with no laptop, no PC, a
 ---
 
 *MIT © 2026 Tharun · Naeris · Aevra Studio*
+v0.15.0 → New module text.py: free-text column drift, pure Python, zero dependencies.
+           Free-text columns (non-numeric, several words/value, mostly unique values) are
+           auto-detected by loader.detect_type() -> "text" and analysed by analyze_text()
+           instead of being treated as categorical (where every unique sentence was its own
+           "category" and results were meaningless). `--text-columns` / `text_columns=`
+           forces it; `--no-text-detect` / `detect_text=False` restores old behaviour.
+
+           What it measures: noise-corrected Jensen-Shannon divergence between word
+           distributions, rising/falling/brand-new words, unseen-word rate (Good-Turing
+           corrected), script/language mix, words-per-value length drift, and structure
+           (empty/duplicate/URL/digit/upper/symbol rates, capped at MEDIUM).
+
+           Calibration lessons (worth remembering):
+           - Raw JSD between two samples of the SAME source is not 0 — it's about
+             (K-1)(1/n1+1/n2)/(8 ln2) bits. Subtracting that analytic floor (inflated 1.5x
+             + 25/min_docs for within-message word clustering) is what makes healthy data
+             PASS. Verified by simulation on synthetic chatbot traffic before choosing the
+             thresholds (text_jsd_medium=0.005, text_jsd_high=0.04).
+           - Rare vocabulary bins (combined count < 5) are merged, otherwise the
+             chi-square approximation behind the floor breaks. Trade-off: swapping rare
+             words between topics is invisible at small n; sensitivity grows with data.
+           - analyze_numeric's PSI on word counts false-alarmed at small n (empty-bin
+             artefacts, PSI = 1-5 on healthy data). Length PSI only gets a vote at >= 200
+             values per side; mean/std thresholds are widened by the null noise margin.
+           - analyze_numeric is blind to mean shift when the baseline std is 0 (every
+             baseline value identical) — text.py has a relative-change fallback for text
+             length; the numeric analyser itself still has this gap.
+           - Tokeniser keeps Unicode combining marks inside words, otherwise Tamil/Hindi
+             words get shredded at vowel signs. Underscores split words (snake_case).
+
+           Also: README comparison table rebuilt from PyPI metadata (old "~15KB / ~50MB+ /
+           ~100MB+" sizes and competitor "No" claims were not measurable/true), removed the
+           documented-but-nonexistent `--config` flag, replaced stale test output.

@@ -11,6 +11,8 @@ import csv
 import math
 import os
 
+from .text import looks_like_text
+
 
 def load_csv(filepath):
     """Load a CSV file and return a dict of column_name -> list of values."""
@@ -132,17 +134,24 @@ def load_dataframe(df):
     return result
 
 
-def detect_type(values):
+def detect_type(values, allow_text=True):
     """
-    Detect if a column is numeric or categorical.
-    Threshold: >80% parseable as float → numeric.
-    Returns: 'numeric' or 'categorical'
+    Detect if a column is numeric, free text, or categorical.
+    >80% parseable as float → numeric.
+    Otherwise, several words per value + mostly-unique values → text
+    (see text.looks_like_text). Pass allow_text=False for the pre-0.15
+    two-way numeric/categorical behaviour.
+    Returns: 'numeric', 'text' or 'categorical'
     """
     if not values:
         return 'categorical'
     numeric_count = sum(1 for v in values if _try_float(v))
     ratio = numeric_count / len(values)
-    return 'numeric' if ratio > 0.8 else 'categorical'
+    if ratio > 0.8:
+        return 'numeric'
+    if allow_text and looks_like_text(values):
+        return 'text'
+    return 'categorical'
 
 
 def _try_float(v):

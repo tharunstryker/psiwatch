@@ -38,7 +38,7 @@ CONFIG_FILENAMES = ["psiwatch.toml", ".psiwatchrc"]
 RECOGNIZED_KEYS = {
     "psi_threshold", "columns", "ignore_columns", "format",
     "output", "fail_on_drift", "silent", "webhook", "thresholds",
-    "interval", "output_dir",
+    "interval", "output_dir", "text_columns", "detect_text",
 }
 
 
@@ -191,6 +191,15 @@ def apply_config(args, config):
         cols = config["columns"]
         args.columns = ",".join(str(c) for c in cols) if isinstance(cols, list) else str(cols)
 
+    if getattr(args, "text_columns", None) is None and "text_columns" in config:
+        cols = config["text_columns"]
+        args.text_columns = (
+            ",".join(str(c) for c in cols) if isinstance(cols, list) else str(cols)
+        )
+
+    if config.get("detect_text") is False and hasattr(args, "no_text_detect"):
+        args.no_text_detect = True
+
     if getattr(args, "ignore_columns", None) is None and "ignore_columns" in config:
         cols = config["ignore_columns"]
         args.ignore_columns = (
@@ -234,6 +243,11 @@ def write_example_config(path="psiwatch.toml"):
 # Columns to always skip
 # ignore_columns = ["id", "timestamp", "row_num"]
 
+# Free-text columns (chat messages, reviews, tickets) are auto-detected.
+# Force specific columns to text, or turn auto-detection off:
+# text_columns = ["message", "review"]
+# detect_text = false
+
 # Default output format: terminal, json, txt, html
 # format = "html"
 
@@ -256,6 +270,7 @@ def write_example_config(path="psiwatch.toml"):
 # [thresholds]
 # mean_shift_high = 0.6
 # psi_high = 0.3
+# text_jsd_high = 0.08      # vocabulary drift score (bits) for HIGH on text columns
 """
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)

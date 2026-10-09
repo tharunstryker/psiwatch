@@ -44,6 +44,61 @@ def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _fmt_terms(entries, with_pct=True):
+    """['refund (0% → 18% of values)', ...] for rising/falling terms."""
+    out = []
+    for e in entries:
+        if with_pct and 'baseline_doc_pct' in e:
+            out.append(f"{e['term']} ({e['baseline_doc_pct']:g}% → {e['new_doc_pct']:g}%)")
+        elif 'new_doc_pct' in e:
+            out.append(f"{e['term']} ({e['new_doc_pct']:g}%)")
+        else:
+            out.append(str(e['term']))
+    return ", ".join(out)
+
+
+def _fmt_scripts(shares, limit=3):
+    items = [(k, v) for k, v in shares.items() if v >= 1][:limit]
+    return ", ".join(f"{'no letters' if k == 'None' else k} {v:g}%" for k, v in items) or "—"
+
+
+def _text_rows(m):
+    """(label, value) rows describing a free-text column's metrics."""
+    rows = []
+    if m.get('text_drift_score') is not None:
+        rows.append(("Vocab drift", f"{_fmt(m['text_drift_score'], 4)}  "
+                                    f"(noise floor {_fmt(m.get('jsd_noise_floor'), 4)})"))
+    if m.get('baseline_words_mean') is not None:
+        rows.append(("Words/value", f"{_fmt(m.get('baseline_words_mean'), 1)} → "
+                                    f"{_fmt(m.get('new_words_mean'), 1)}"))
+    if m.get('new_unseen_word_rate') is not None:
+        rows.append(("Unseen words", f"{m['expected_unseen_word_rate'] * 100:.1f}% expected → "
+                                     f"{m['new_unseen_word_rate'] * 100:.1f}%"))
+    sc = m.get('scripts')
+    if sc:
+        rows.append(("Scripts", f"{_fmt_scripts(sc['baseline'])}  →  {_fmt_scripts(sc['new'])}"))
+    if m.get('rising_terms'):
+        rows.append(("Rising", _fmt_terms(m['rising_terms'])))
+    if m.get('falling_terms'):
+        rows.append(("Falling", _fmt_terms(m['falling_terms'])))
+    if m.get('emerging_terms'):
+        approx = " (approx.)" if m.get('emerging_terms_approximate') else ""
+        rows.append(("New words" + approx, _fmt_terms(m['emerging_terms'], with_pct=False)))
+    return rows
+
+
+def _tree(rows, indent="     "):
+    """Render rows with the ┌ ├ └ glyphs used by the numeric block."""
+    lines = []
+    for i, (label, value) in enumerate(rows):
+        glyph = "┌" if i == 0 else ("└" if i == len(rows) - 1 else "├")
+        if len(rows) == 1:
+            glyph = "└"
+        lines.append(f"{indent}{glyph} {label + ':':<14}{value}")
+    return lines
+
+
+
 # ─── Terminal ─────────────────────────────────────────────────────────────────
 
 def print_report(analysis, source_info=None):
@@ -93,6 +148,9 @@ def print_report(analysis, source_info=None):
             print(f"     ┌ PSI:         {_fmt(m.get('psi'),4)}")
             print(f"     ├ Chi-square:  {_fmt(m.get('chi_square'),4)}")
             print(f"     └ New cats:    {m.get('new_categories') or 'None'}")
+        elif result['type'] == 'text' and m:
+            for line in _tree(_text_rows(m)):
+                print(line)
 
     counts = {s: 0 for s in ['HIGH', 'MEDIUM', 'PASS', 'UNKNOWN']}
     for r in columns.values():
@@ -161,6 +219,9 @@ def to_txt(analysis, filepath=None, source_info=None, silent=False):
             lines.append(f"  Median:  {_fmt(m.get('baseline_median'),2)} -> {_fmt(m.get('new_median'),2)}")
             lines.append(f"  P75:     {_fmt(m.get('baseline_p75'),2)} -> {_fmt(m.get('new_p75'),2)}")
             lines.append(f"  Max:     {_fmt(m.get('baseline_max'),2)} -> {_fmt(m.get('new_max'),2)}")
+        elif result['type'] == 'text' and m:
+            for label, value in _text_rows(m):
+                lines.append(f"  {label + ':':<14}{value.replace('→', '->')}")
 
     counts = {s: 0 for s in ['HIGH', 'MEDIUM', 'PASS']}
     for r in columns.values():
@@ -258,6 +319,18 @@ def to_html(analysis, filepath=None, source_info=None, silent=False, embed_chart
               <table class="stats-table">
                 <thead><tr><th>Stat</th><th>Baseline</th><th>New</th></tr></thead>
                 <tbody>{table_rows}</tbody>
+              </table>
+            </div>"""
+        elif result['type'] == 'text':
+            text_rows = "".join(
+                f"<tr><td>{html.escape(lbl)}</td><td>{html.escape(str(val))}</td></tr>"
+                for lbl, val in _text_rows(m)
+            )
+            metrics_html = f"""
+            <div class="stats-wrap">
+              <div class="psi-chip">Vocab drift <b>{_fmt(m.get('text_drift_score'),4)}</b></div>
+              <table class="stats-table text-table">
+                <tbody>{text_rows}</tbody>
               </table>
             </div>"""
         else:
@@ -394,6 +467,7 @@ def to_html(analysis, filepath=None, source_info=None, silent=False, embed_chart
   }}
   .stats-table th {{ color: #64748b; font-weight: 600; border-bottom: 1px solid #334155; }}
   .stats-table td:first-child {{ text-align: left; color: #64748b; }}
+  .text-table td {{ text-align: left; word-break: break-word; }}
   .metrics {{ display: flex; flex-wrap: wrap; gap: 0.75rem; }}
   .metrics span {{ font-size: 0.78rem; background: #0f172a; padding: 0.3rem 0.7rem; border-radius: 6px; color: #94a3b8; }}
   .metrics b {{ color: #e2e8f0; }}

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test tools
+        run: python -m pip install pytest matplotlib
+      - name: Run tests
+        # Run straight from src/ so the old setuptools available on Python 3.8
+        # never has to build the package.
+        run: PYTHONPATH=src python -m pytest -q
+
+  build:
+    name: build + version check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build twine
+          python -m build
+          twine check dist/*
+      - name: Check pyproject and __init__ versions match
+        run: |
+          python - <<'PY'
+          import re, tomllib
+          py = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          init = re.search(r'__version__\s*=\s*"([^"]+)"',
+                           open("src/psiwatch/__init__.py").read()).group(1)
+          assert py == init, f"version mismatch: pyproject={py} __init__={init}"
+          print("versions match:", py)
+          PY
+      - name: Zero-dependency check
+        run: |
+          python - <<'PY'
+          import tomllib
+          deps = tomllib.load(open("pyproject.toml", "rb"))["project"]["dependencies"]
+          assert deps == [], f"core dependencies must be empty, found {deps}"
+          print("core dependencies: none")
+          PY

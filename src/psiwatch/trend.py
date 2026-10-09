@@ -55,7 +55,8 @@ def _is_worsening(severity_history):
 
 
 def analyze_trend(files, columns=None, ignore_columns=None,
-                  psi_threshold=None, thresholds=None, baseline="previous"):
+                  psi_threshold=None, thresholds=None, baseline="previous",
+                  text_columns=None, detect_text=True):
     """
     Run drift analysis across a sequence of datasets.
 
@@ -68,6 +69,8 @@ def analyze_trend(files, columns=None, ignore_columns=None,
         thresholds: optional dict of fine-grained threshold overrides
         baseline: "previous" (default) — compare each file to the one before it
                   "first" — compare every file back to files[0]
+        text_columns: optional list — force these columns to free-text analysis
+        detect_text: auto-detect free-text columns (default True)
 
     Returns:
         dict:
@@ -101,6 +104,7 @@ def analyze_trend(files, columns=None, ignore_columns=None,
         result = _analyze(
             resolved[base_idx], resolved[i],
             columns=columns, ignore_columns=ignore_columns, thresholds=t,
+            text_columns=text_columns, detect_text=detect_text,
         )
 
         step_columns = {}

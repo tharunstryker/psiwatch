@@ -39,6 +39,12 @@ psiwatch — Dataset drift detection library.
     from psiwatch.webhook import send_webhook
     send_webhook("https://hooks.slack.com/...", result)
 
+    # Free-text columns (chatbot messages, reviews, tickets) are auto-detected
+    # and analysed for vocabulary, language/script, length and structure drift.
+    # Force or disable detection explicitly:
+    psiwatch.compare("old.csv", "new.csv", text_columns=["message"])
+    psiwatch.compare("old.csv", "new.csv", detect_text=False)
+
     # Parquet files — works anywhere a CSV path works (auto-detected by extension)
     psiwatch.compare("old.parquet", "new.parquet")
 
@@ -57,7 +63,7 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
@@ -117,7 +123,8 @@ def _source_label(old, new):
 
 def compare(old, new, output=None, columns=None, ignore_columns=None,
             psi_threshold=None, thresholds=None, fail_on_drift=False,
-            silent_update=False, silent_save=False, embed_chart=False):
+            silent_update=False, silent_save=False, embed_chart=False,
+            text_columns=None, detect_text=True):
     """
     Compare two datasets and print or save a drift report.
 
@@ -138,6 +145,10 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
             histogram chart directly into the report (base64 PNG, no separate
             file). Requires matplotlib (pip install psiwatch[charts]) — raises
             ImportError if missing. Ignored for non-HTML output formats.
+        text_columns: optional list — force these columns to be analysed as
+            free text (vocabulary / script / length / structure drift)
+        detect_text: auto-detect free-text columns (default True). False
+            restores pre-0.15 behaviour (text treated as categorical).
 
     Returns:
         dict — keys: 'columns', 'health_score', 'warnings', 'summary'
@@ -146,13 +157,15 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
     current = resolve_input(new)
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
     result = _analyze(baseline, current, columns=columns,
-                      ignore_columns=ignore_columns, thresholds=t)
+                      ignore_columns=ignore_columns, thresholds=t,
+                      text_columns=text_columns, detect_text=detect_text)
     source_info = _source_label(old, new)
 
     chart_bytes = None
     if embed_chart and output and output.lower().endswith(".html"):
         from .viz import plot_drift_bytes
-        chart_bytes = plot_drift_bytes(old, new, columns=columns, ignore_columns=ignore_columns)
+        chart_bytes = plot_drift_bytes(old, new, columns=columns, ignore_columns=ignore_columns,
+                                       text_columns=text_columns, detect_text=detect_text)
 
     output_report(result, output=output, source_info=source_info,
                   silent=silent_save, embed_chart=chart_bytes)
@@ -168,20 +181,29 @@ def compare(old, new, output=None, columns=None, ignore_columns=None,
 
 def compare_data(old_data, new_data, output=None, columns=None,
                  ignore_columns=None, psi_threshold=None, thresholds=None,
-                 fail_on_drift=False):
+                 fail_on_drift=False, text_columns=None, detect_text=True):
     """Compare dicts, lists of dicts, or DataFrames. Alias for compare()."""
     return compare(old_data, new_data, output=output, columns=columns,
                    ignore_columns=ignore_columns, psi_threshold=psi_threshold,
-                   thresholds=thresholds, fail_on_drift=fail_on_drift)
+                   thresholds=thresholds, fail_on_drift=fail_on_drift,
+                   text_columns=text_columns, detect_text=detect_text)
 
 
 def compare_columns(old_list, new_list, name="column", output=None,
-                    psi_threshold=None, thresholds=None, fail_on_drift=False):
-    """Compare two plain Python lists (single column)."""
+                    psi_threshold=None, thresholds=None, fail_on_drift=False,
+                    text=None):
+    """
+    Compare two plain Python lists (single column).
+
+    text: True forces free-text analysis (e.g. two lists of chat messages),
+          False disables text auto-detection, None (default) auto-detects.
+    """
     baseline = resolve_input(old_list, column_name=name)
     current = resolve_input(new_list, column_name=name)
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
-    result = _analyze(baseline, current, thresholds=t)
+    result = _analyze(baseline, current, thresholds=t,
+                      text_columns=[name] if text else None,
+                      detect_text=(text is not False))
     output_report(result, output=output)
     if fail_on_drift and result["health_score"] < 80:
         raise DriftDetected(
@@ -191,7 +213,8 @@ def compare_columns(old_list, new_list, name="column", output=None,
 
 
 def analyze(old, new, columns=None, ignore_columns=None,
-            psi_threshold=None, thresholds=None):
+            psi_threshold=None, thresholds=None,
+            text_columns=None, detect_text=True):
     """
     Run drift analysis — returns raw result dict, no output, no side effects.
 
@@ -206,7 +229,8 @@ def analyze(old, new, columns=None, ignore_columns=None,
     current = resolve_input(new)
     t = _build_thresholds(psi_threshold=psi_threshold, thresholds=thresholds)
     return _analyze(baseline, current, columns=columns,
-                    ignore_columns=ignore_columns, thresholds=t)
+                    ignore_columns=ignore_columns, thresholds=t,
+                    text_columns=text_columns, detect_text=detect_text)
 
 
 # ─── Lock API ─────────────────────────────────────────────────────────────────

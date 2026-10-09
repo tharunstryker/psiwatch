@@ -1,10 +1,10 @@
 # psiwatch
 
-**Current version: 0.14.0**
+**Current version: 0.15.0**
 
 **Zero-dependency Python library for dataset drift detection in ML pipelines.**
 
-Detect covariate drift, distribution shift, and data quality degradation between two datasets — using PSI, Chi-Square, Mean Shift, and Standard Deviation analysis. Pure Python. No numpy. No scipy. No pandas required.
+Detect covariate drift, distribution shift, and data quality degradation between two datasets — using PSI, Chi-Square, Mean Shift, Standard Deviation analysis, and — new in 0.15 — vocabulary, language and length drift for free-text columns. Pure Python. No numpy. No scipy. No pandas. No models to download.
 
 ![PyPI](https://img.shields.io/pypi/v/psiwatch)
 ![Downloads](https://img.shields.io/pypi/dm/psiwatch)
@@ -76,24 +76,80 @@ psiwatch compare train.csv production.csv
 
 ---
 
+## Text Drift — chatbot messages, reviews, tickets *(new in 0.15)*
+
+A column of sentences used to be treated as a categorical column where every unique sentence is its own "category" — meaningless results and no explanation. psiwatch now detects free-text columns automatically and analyses them as text, with **no embeddings, no models and no extra dependencies**.
+
+```bash
+psiwatch compare chats_jan.csv chats_feb.csv
+```
+
+```
+  [!!] message  [text]  — HIGH DRIFT
+     → Vocabulary drift score 0.518 (significant; noise floor 0.007) — rising: order, help, pls; falling: delivery, blue, package
+     → New words not in baseline: refund, திரும்ப, பணம், give, எனக்கு
+     → 55.2% of words are unseen in the baseline (expected ~0.0%)
+     ┌ Vocab drift:  0.5176  (noise floor 0.0071)
+     ├ Words/value:  6.7 → 6.3
+     ├ Unseen words: 0.0% expected → 55.2%
+     ├ Scripts:      Latin 100%  →  Latin 87.5%, Tamil 12.5%
+     ├ Rising:       order (6.5% → 13.8%), help (9.5% → 12.8%), pls (9.5% → 12.8%)
+     ├ Falling:      delivery (20.5% → 0%), blue (12% → 0%), package (11.7% → 0%), price (11.7% → 0%)
+     └ New words:    refund (19.2%), திரும்ப (14.7%), பணம் (14.7%), give (14.3%), scam (14%), chargeback (13.8%)
+```
+
+(Percentages after a word = share of messages containing it, baseline → new.)
+
+| What is checked | What it catches |
+|---|---|
+| **Vocabulary drift** — Jensen-Shannon divergence (bits, 0–1) between word distributions, **corrected for small-sample noise** | The topics people talk about changed |
+| **Rising / falling / brand-new words** | *What* changed — not just that something did |
+| **Unseen-word rate** (Good-Turing corrected) | New slang, new products, prompt injection, a new campaign |
+| **Script / language mix** (Latin, Tamil, Devanagari, Arabic, CJK …) | A wave of Tamil-script or Hindi traffic arriving at an English-only model |
+| **Length** (words per value) | Users switch from short queries to long pasted prompts |
+| **Structure** — empty, duplicate, URL, digit, upper-case and symbol/emoji rates (MEDIUM at most) | Bots, spam floods, templated or injected input |
+
+**Unicode-aware:** Tamil, Hindi, Bengali etc. are tokenised correctly (combining vowel signs stay attached to their word); CJK is tokenised per character.
+
+**Detection and control:**
+
+```python
+psiwatch.compare("old.csv", "new.csv")                          # text columns auto-detected
+psiwatch.compare("old.csv", "new.csv", text_columns=["message"])  # force a column to text
+psiwatch.compare("old.csv", "new.csv", detect_text=False)       # pre-0.15 behaviour
+```
+```bash
+psiwatch compare old.csv new.csv --text-columns message
+psiwatch compare old.csv new.csv --no-text-detect
+```
+
+A column is treated as text when it isn't numeric, has several words per value, and its values are mostly unique. Repeated multi-word categories ("New York", "Order shipped") stay categorical. Locks (`psiwatch lock`) store a bounded fingerprint for text columns too: word counts for the top 1,000 words plus a few scalars, not the messages.
+
+**Honest limits — read these:**
+- **Bag-of-words, not meaning.** "refund" and "money back" are unrelated words to psiwatch. For semantic drift you need embedding-based tools (see *Related Tools*).
+- **Small samples have low power.** Under ~100 values per side, psiwatch warns and the noise-aware thresholds make it slower to flag. Fewer than 5 non-empty values → `UNKNOWN`.
+- **Thresholds are heuristics.** They were calibrated on simulated chatbot traffic (healthy samples stay PASS from ~100 values; a topic takeover reaches HIGH). Tune them on your own data with `[thresholds] text_jsd_medium / text_jsd_high` (default 0.005 / 0.04 bits).
+- **Word lists reveal vocabulary.** A lock file holds no messages, but its top-word list reflects your data's vocabulary — don't commit locks built from sensitive text to a public repo.
+- **Charts can't draw Indic scripts.** matplotlib (used only by `--plot` / `--embed-chart`) has no native Tamil shaping, so Tamil/Devanagari words appear as boxes in the PNG chart. Terminal, TXT, HTML and JSON reports render them correctly.
+- **Speed:** pure Python, roughly 6.5 s for 100k + 100k messages on a desktop CPU; expect slower on a phone.
+
+---
+
 ## Why psiwatch?
 
-Most drift detection tools require heavy dependencies and are built for Jupyter notebooks — not pipelines or minimal environments.
+psiwatch is for pipelines and minimal environments where you want a drift check with nothing to install but psiwatch itself.
 
-| Feature | psiwatch | evidently | alibi-detect |
+| | psiwatch 0.15.0 | evidently 0.7.23 | alibi-detect 0.13.0 |
 |---|---|---|---|
-| Dependencies | **Zero** | Heavy | Heavy |
-| Install size | **~15KB** | ~50MB+ | ~100MB+ |
-| Works on Termux/Android | **Yes** | No | No |
-| CLI tool | **Yes** | No | No |
-| CI/CD `--fail-on-drift` flag | **Yes** | No | No |
-| Self-upgrade via CLI | **Yes** | No | No |
-| pandas DataFrame support | **Yes** | Yes | Yes |
-| Pure Python | **Yes** | No | No |
-| Auto update check | **Yes** | No | No |
-| HTML reports | **Yes** | Yes | No |
-| Trend direction (↑↓→) | **Yes** | No | No |
-| Vanished category detection | **Yes** | No | No |
+| Required dependencies | **0** | 26 | 17 |
+| Wheel size (package only) | ~74 KB | 11.7 MB | 0.4 MB |
+| Python versions | 3.8+ | 3.10+ | 3.9+ |
+
+*Dependency counts and wheel sizes are from each package's PyPI metadata (core requirements, excluding extras), checked October 2026. Wheel size excludes dependencies — installing the others pulls in numpy, pandas, scikit-learn and more; psiwatch pulls in nothing.*
+
+**What psiwatch gives you:** a CLI, `--fail-on-drift` for CI, baseline locking, directory watching, multi-snapshot trends, webhook alerts, HTML/JSON/TXT reports, Parquet/SQL/DataFrame input, and text-column drift — all pure standard-library Python, developed and tested on Termux/Android.
+
+**What psiwatch does not do** (use the tools in *Related Tools* when you need these): model-based or embedding-based drift detection, multivariate drift (columns are analysed one at a time), a monitoring dashboard/UI, or target/prediction drift and model-quality metrics.
 
 ---
 
@@ -143,6 +199,10 @@ psiwatch compare old.csv new.csv --output report.json
 # Save as plain text
 psiwatch compare old.csv new.csv --output report.txt
 
+# Force a column to be analysed as free text / turn text auto-detection off
+psiwatch compare old.csv new.csv --text-columns message
+psiwatch compare old.csv new.csv --no-text-detect
+
 # Compare specific columns only
 psiwatch compare old.csv new.csv --columns age,score,city
 
@@ -161,8 +221,8 @@ psiwatch compare old.csv new.csv --silent
 # Send a Slack/Discord/webhook alert on drift
 psiwatch compare old.csv new.csv --webhook https://hooks.slack.com/services/XXX/YYY/ZZZ
 
-# Use a config file instead of passing flags every time
-psiwatch compare old.csv new.csv --config myconfig.toml
+# Config files (psiwatch.toml / .psiwatchrc) in the project directory are picked up automatically
+psiwatch compare old.csv new.csv
 
 # One-line health summary (no full report — ideal for shell scripts)
 psiwatch summary train.csv new.csv
@@ -315,6 +375,14 @@ psiwatch.compare("old.csv", "new.csv", thresholds={
     "std_shift_high": 0.5,
     "category_share_shift": 0.10,
     "chi_square_medium": 0.5,
+    # free-text columns (defaults shown)
+    "text_jsd_medium": 0.005,        # vocabulary drift score, bits
+    "text_jsd_high": 0.04,
+    "text_oov_medium": 0.10,         # excess share of unseen words
+    "text_oov_high": 0.25,
+    "text_script_shift_medium": 0.15,  # share of values changing writing system
+    "text_script_shift_high": 0.30,
+    "text_structure_shift": 0.10,    # empty/duplicate/URL/digit/upper/symbol rates
 })
 ```
 
@@ -459,6 +527,8 @@ Store default settings in `psiwatch.toml` or `.psiwatchrc` (JSON) in your projec
 ```toml
 psi_threshold = 0.2
 ignore_columns = ["id", "timestamp"]
+text_columns = ["message"]      # force free-text analysis (optional)
+# detect_text = false           # turn text auto-detection off
 fail_on_drift = true
 webhook = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
 
@@ -475,7 +545,7 @@ mean_shift_high = 0.6
 }
 ```
 
-psiwatch auto-detects these files in the current directory. Use `--config path/to/config.toml` for a different path.
+psiwatch auto-detects these files in the current directory (and walks up through parent directories). There is no `--config` flag; keep the file in your project root.
 
 ---
 
@@ -527,6 +597,19 @@ All outputs include: timestamp, source file names, per-column metrics, health sc
 | Frequency Distribution Shift | Category proportions changed |
 | PSI | Overall distribution changed |
 | Chi-Square | Frequency mismatch is statistically significant |
+
+### Text columns — messages, reviews, tickets, search queries
+
+| Method | What it detects |
+|---|---|
+| Vocabulary drift (noise-corrected JSD) | Word distribution changed |
+| Rising / falling / new words | Which words drove the change |
+| Unseen-word rate (Good-Turing corrected) | Words never seen in the baseline |
+| Script / language mix | Writing system shifted (e.g. Latin → Tamil) |
+| Length shift | Words per value changed |
+| Structure rates | Empty, duplicate, URL, digit, upper-case, symbol/emoji rates |
+
+See **Text Drift** above for details and limits.
 
 ---
 
@@ -588,6 +671,7 @@ psiwatch/
 │   ├── adapt.py          ← learn-thresholds: per-column learned PSI thresholds
 │   ├── viz.py            ← optional matplotlib chart export (psiwatch[charts])
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
+│   ├── text.py          ← free-text drift: vocabulary JSD, new words, scripts, length, structure
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
 │   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
 │   ├── locker.py        ← baseline locking (lock / check / lock-info) — stores fingerprints, not raw data
@@ -603,6 +687,7 @@ psiwatch/
 │   ├── test_analyzer.py
 │   ├── test_locker.py
 │   ├── test_reporter.py
+│   ├── test_text.py
 │   ├── test_trend.py
 │   ├── test_updater.py
 │   ├── test_webhook.py
@@ -621,20 +706,7 @@ pytest
 ```
 
 ```
-Running psiwatch tests...
-
-PASS numeric high drift detected
-PASS numeric no drift — PASS
-PASS categorical new category detected
-PASS categorical no drift — PASS
-PASS full analyze — health score: 0/100
-PASS health score clean data: 100/100
-PASS column filter works
-PASS list of dicts input works
-PASS missing column warning fires
-PASS health score hard cap: HIGH column in large dataset → 50/100
-
-All tests passed.
+============================== 93 passed ==============================
 ```
 
 ---
@@ -653,12 +725,22 @@ psiwatch uses only Python's standard library:
 | `urllib` | PyPI version check |
 | `subprocess` | Self-upgrade (`psiwatch update`) |
 | `datetime` | Report timestamps |
+| `re`, `unicodedata`, `collections`, `bisect` | Text tokenisation and word counts (0.15+) |
 
 No pip conflicts. No install failures. If Python runs, psiwatch runs.
 
 ---
 
 ## Changelog
+
+### v0.15.0
+- **Added:** free-text column drift. Columns of sentences (chat messages, reviews, tickets, queries) are auto-detected and analysed for vocabulary drift (noise-corrected Jensen-Shannon divergence), rising/falling/brand-new words, unseen-word rate (Good-Turing corrected), script/language mix, length, and structure (empty, duplicate, URL, digit, upper-case, symbol rates). Pure Python, zero dependencies, no models. Works in `compare`, `analyze`, `summary`, `lock`/`check`, `trend`, `--plot` and `--embed-chart`.
+  - `--text-columns a,b` / `text_columns=[...]` forces text analysis; `--no-text-detect` / `detect_text=False` restores pre-0.15 behaviour (text treated as categorical).
+  - New thresholds: `text_jsd_medium/high`, `text_oov_medium/high`, `text_script_shift_medium/high`, `text_structure_shift`. New config keys: `text_columns`, `detect_text`.
+  - Behaviour change: a free-text column that used to be reported as `[categorical]` is now reported as `[text]`.
+  - Lock files gain a `text` column type (bounded: top-1,000 word counts + scalars). Locks containing text columns cannot be read by psiwatch < 0.15.
+- **Fixed (README):** removed the non-existent `--config` flag; replaced the competitor comparison (unverified "No" claims and wrong sizes) with dependency counts and wheel sizes measured from PyPI metadata; corrected the package size (~74 KB wheel, not ~15 KB); replaced stale hand-rolled test output with the real pytest summary.
+- Tests: 93 (53 existing + 40 new, including noise-calibration tests that require healthy data to stay PASS).
 
 ### v0.14.0
 - **Added:** `psiwatch.viz.plot_drift()` — real baseline-vs-new histogram overlay charts (numeric columns) and category frequency comparisons (categorical columns), saved as a PNG/PDF/SVG. Built from the exact same binned histogram data PSI itself uses — not an approximation from summary stats.

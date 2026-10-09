@@ -35,23 +35,32 @@ DEFAULT_LOCK_FILE = "psiwatch.lock.json"
 LOCK_FORMAT_VERSION = "2"
 
 
-def _summarize(col_data):
+def _summarize(col_data, text_columns=None, detect_text=True):
     """
     Build a bounded statistical fingerprint of a column dict — O(bins) for
-    numeric columns, O(unique categories) for categorical columns. Never
-    stores raw row-level values.
+    numeric columns, O(unique categories) for categorical columns, O(top-K
+    vocabulary) for free-text columns. Never stores raw row-level values.
     """
-    from .analyzer import build_numeric_summary, build_categorical_summary
+    from .analyzer import (build_numeric_summary, build_categorical_summary,
+                           build_text_summary)
     from .loader import detect_type, cast_numeric
 
+    forced_text = set(text_columns or [])
     snapshot = {}
     for col, values in col_data.items():
-        col_type = detect_type(values)
+        if col in forced_text:
+            col_type = "text"
+        else:
+            col_type = detect_type(values, allow_text=detect_text)
         entry = {"type": col_type, "count": len(values)}
 
         if col_type == "numeric":
             nums = cast_numeric(values)
             summary = build_numeric_summary(nums)
+            if summary:
+                entry["summary"] = summary
+        elif col_type == "text":
+            summary = build_text_summary(values)
             if summary:
                 entry["summary"] = summary
         else:
@@ -63,7 +72,8 @@ def _summarize(col_data):
     return snapshot
 
 
-def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None):
+def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None,
+              text_columns=None, detect_text=True):
     """
     Save a statistical fingerprint of source to a lock file.
 
@@ -71,6 +81,8 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None):
         source: CSV path, dict, list of dicts, or DataFrame
         lock_path: where to write the lock file (default: psiwatch.lock.json)
         columns: optional list of columns to lock (default: all)
+        text_columns: optional list of columns to force as free text
+        detect_text: auto-detect free-text columns (default True)
 
     Returns:
         dict — the lock data that was saved
@@ -92,7 +104,8 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None):
         "version": LOCK_FORMAT_VERSION,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source": source_label,
-        "columns": _summarize(col_data),
+        "columns": _summarize(col_data, text_columns=text_columns,
+                              detect_text=detect_text),
     }
 
     with open(lock_path, "w", encoding="utf-8") as f:
@@ -210,6 +223,13 @@ def lock_info(lock_path=DEFAULT_LOCK_FILE):
             print(f"    mean={summary.get('mean')}  std={summary.get('std')}")
             print(f"    min={summary.get('min')}  p25={summary.get('p25')}  "
                   f"median={summary.get('median')}  p75={summary.get('p75')}  max={summary.get('max')}")
+        elif col_type == "text":
+            length = summary.get("length") or {}
+            top = list((summary.get("vocab") or {}).keys())[:8]
+            print(f"  {col} [text, n={count}, {summary.get('vocab_size', '?')} distinct words]")
+            print(f"    words/value: mean={length.get('mean')}  median={length.get('median')}")
+            print(f"    scripts: {summary.get('scripts')}")
+            print(f"    top words: {top}")
         else:
             cats = summary.get("categories", [])
             print(f"  {col} [categorical, n={count}, {len(cats)} categories]")

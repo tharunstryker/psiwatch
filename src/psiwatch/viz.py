@@ -64,7 +64,8 @@ def _require_matplotlib():
 
 def _build_figure(old, new, columns=None, ignore_columns=None,
                    bins=10, style=None, max_cols_per_row=3,
-                   figsize_per_plot=(4.5, 3.5), title=None):
+                   figsize_per_plot=(4.5, 3.5), title=None,
+                   text_columns=None, detect_text=True):
     """
     Shared figure-building logic used by both plot_drift() (saves to file)
     and plot_drift_bytes() (returns PNG bytes, for HTML embedding). See
@@ -73,6 +74,7 @@ def _build_figure(old, new, columns=None, ignore_columns=None,
     plt = _require_matplotlib()
     from .loader import resolve_input, cast_numeric, detect_type
     from .analyzer import build_numeric_histogram, _frequencies
+    from .text import analyze_text
 
     if style:
         if style not in plt.style.available:
@@ -108,9 +110,35 @@ def _build_figure(old, new, columns=None, ignore_columns=None,
 
     for i, col in enumerate(plot_columns):
         ax = axes[i // ncols][i % ncols]
-        col_type = detect_type(old_cols[col])
+        if col in (text_columns or []):
+            col_type = "text"
+        else:
+            col_type = detect_type(old_cols[col], allow_text=detect_text)
 
-        if col_type == "numeric":
+        if col_type == "text":
+            m = analyze_text(old_cols[col], new_cols[col]).get("metrics", {})
+            movers = (m.get("rising_terms") or [])[:4] + (m.get("falling_terms") or [])[:4]
+            movers += (m.get("emerging_terms") or [])[:3]
+            if not movers:
+                ax.set_title(f"{col} (text — no word-level drift to plot)", fontsize=9)
+                ax.axis("off")
+                continue
+            names = [e["term"] for e in movers]
+            b_pct = [e.get("baseline_doc_pct", 0.0) for e in movers]
+            n_pct = [e.get("new_doc_pct", 0.0) for e in movers]
+            x = range(len(names))
+            width = 0.4
+            ax.bar([xi - width / 2 for xi in x], b_pct, width=width,
+                   label="baseline", alpha=0.7)
+            ax.bar([xi + width / 2 for xi in x], n_pct, width=width,
+                   label="new", alpha=0.7)
+            ax.set_xticks(list(x))
+            ax.set_xticklabels(names, rotation=45, ha="right", fontsize=7)
+            ax.set_ylabel("% of values containing word", fontsize=8)
+            ax.set_title(f"{col} (text: top shifted words)", fontsize=9)
+            ax.legend(fontsize=8)
+
+        elif col_type == "numeric":
             b_vals = cast_numeric(old_cols[col])
             n_vals = cast_numeric(new_cols[col])
             if len(b_vals) < 2 or len(n_vals) < 2:
@@ -172,14 +200,15 @@ def _build_figure(old, new, columns=None, ignore_columns=None,
 def plot_drift(old, new, columns=None, ignore_columns=None,
                 output="drift_chart.png", bins=10, style=None,
                 max_cols_per_row=3, figsize_per_plot=(4.5, 3.5),
-                title=None, dpi=120):
+                title=None, dpi=120, text_columns=None, detect_text=True):
     """
     Draw real baseline-vs-new histogram overlays and save them to an image.
 
     Numeric columns get an overlaid histogram (baseline vs new, real binned
     data — the same bins PSI itself uses). Categorical columns get a
-    side-by-side bar chart of category frequencies. One panel per column,
-    arranged in a grid.
+    side-by-side bar chart of category frequencies. Free-text columns get a
+    bar chart of the words that shifted most (share of values containing
+    each word). One panel per column, arranged in a grid.
 
     Args:
         old: CSV path, Parquet path, dict, list of dicts, or DataFrame — baseline
@@ -211,6 +240,7 @@ def plot_drift(old, new, columns=None, ignore_columns=None,
         old, new, columns=columns, ignore_columns=ignore_columns,
         bins=bins, style=style, max_cols_per_row=max_cols_per_row,
         figsize_per_plot=figsize_per_plot, title=title,
+        text_columns=text_columns, detect_text=detect_text,
     )
 
     out_dir = os.path.dirname(output)
@@ -226,7 +256,8 @@ def plot_drift(old, new, columns=None, ignore_columns=None,
 
 def plot_drift_bytes(old, new, columns=None, ignore_columns=None,
                       bins=10, style=None, max_cols_per_row=3,
-                      figsize_per_plot=(4.5, 3.5), title=None, dpi=120):
+                      figsize_per_plot=(4.5, 3.5), title=None, dpi=120,
+                      text_columns=None, detect_text=True):
     """
     Same chart as plot_drift(), but returns PNG bytes in memory instead of
     saving to a file. Used to embed a chart directly into an HTML report
@@ -251,6 +282,7 @@ def plot_drift_bytes(old, new, columns=None, ignore_columns=None,
             old, new, columns=columns, ignore_columns=ignore_columns,
             bins=bins, style=style, max_cols_per_row=max_cols_per_row,
             figsize_per_plot=figsize_per_plot, title=title,
+            text_columns=text_columns, detect_text=detect_text,
         )
     except ValueError:
         return None
