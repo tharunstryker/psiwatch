@@ -718,3 +718,29 @@ v0.15.0 → New module text.py: free-text column drift, pure Python, zero depend
            Also: README comparison table rebuilt from PyPI metadata (old "~15KB / ~50MB+ /
            ~100MB+" sizes and competitor "No" claims were not measurable/true), removed the
            documented-but-nonexistent `--config` flag, replaced stale test output.
+
+           Release notes layout: full history moved out of the README into CHANGELOG.md.
+           `psiwatch version` now prints the version plus highlights of that release
+           (src/psiwatch/whatsnew.py, shipped inside the package because pip does not
+           install CHANGELOG.md); `psiwatch version --short` prints just the number for
+           scripts. tests/test_changelog.py fails if the current version is missing from
+           whatsnew.py or if CHANGELOG.md's newest entry isn't the current version, so
+           a release can't go out without notes. Release checklist: bump pyproject.toml +
+           __init__.py, add the entry to CHANGELOG.md AND whatsnew.py, run pytest.
+
+           README restructured (was 30 flat sections with the deep Text Drift section ahead
+           of Install). Order now: pitch -> problem/solution -> Install -> Quickstart ->
+           What's New (current version only, links to CHANGELOG.md) -> Features table ->
+           Usage -> Text Drift -> Understanding the Report -> Monitoring -> Configuration ->
+           How psiwatch Compares -> Development -> License. Removed the hard-coded
+           "Current version" line (it had already gone stale once; the PyPI badge covers it).
+           Rule going forward: README shows only the CURRENT version's notes; history lives
+           in CHANGELOG.md.
+
+v0.15.1 → 0.15.0 was already on PyPI (PyPI never allows re-uploading a version), so the
+           `psiwatch version` what's-new output, README restructure, CHANGELOG.md and CI
+           workflow ship as a patch release. Text-column drift itself is unchanged from 0.15.0.
+
+v0.15.1 → `psiwatch version` shows release highlights (whatsnew.py) + --short; README restructured;
+           CHANGELOG.md added; CI workflow added. 0.15.0 (text drift) was already on PyPI, so these
+           ship as a patch. README 'What's New' intentionally still describes 0.15.0.

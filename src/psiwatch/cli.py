@@ -158,7 +158,7 @@ Commands:
   lock-info   Show what's in a lock file
   init        Create an example psiwatch.toml
   update      Upgrade psiwatch to latest
-  version     Show installed version
+  version     Show installed version and what's new in it
 
 Examples:
   psiwatch compare train.csv new.csv
@@ -178,7 +178,9 @@ Examples:
     sub = parser.add_subparsers(dest="command")
 
     # ── version ──
-    sub.add_parser("version", help="Show installed version")
+    vp = sub.add_parser("version", help="Show installed version and what's new in it")
+    vp.add_argument("--short", action="store_true", default=False,
+                    help="Print only the version number (for scripts)")
 
     # ── update ──
     sub.add_parser("update", help="Upgrade to latest from PyPI")
@@ -317,6 +319,10 @@ Examples:
 
     if args.command == "version":
         print(f"psiwatch {__version__}")
+        if not getattr(args, "short", False):
+            from .whatsnew import format_whatsnew
+            print()
+            print(format_whatsnew(__version__))
         sys.exit(0)
 
     if args.command == "update":
