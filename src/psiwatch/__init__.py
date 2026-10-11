@@ -39,6 +39,14 @@ psiwatch — Dataset drift detection library.
     from psiwatch.webhook import send_webhook
     send_webhook("https://hooks.slack.com/...", result)
 
+    # Guard a deployed model: save a baseline next to the model, watch live inputs
+    psiwatch.save_baseline(X_train, "model.joblib")
+    guard = psiwatch.Guard.from_model("model.joblib", webhook=SLACK_URL)
+
+    @guard.watch
+    def predict(features):
+        return model.predict(...)
+
     # Free-text columns (chatbot messages, reviews, tickets) are auto-detected
     # and analysed for vocabulary, language/script, length and structure drift.
     # Force or disable detection explicitly:
@@ -63,11 +71,12 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.15.1"
+__version__ = "0.16.0"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
     "analyze_trend", "watch_directory", "write_example_config",
+    "Guard", "save_baseline", "load_baseline", "verify_baseline", "baseline_path",
 ]
 
 # v0.12.0 fix: `import psiwatch` no longer makes a network call to PyPI.
@@ -236,6 +245,11 @@ def analyze(old, new, columns=None, ignore_columns=None,
 # ─── Lock API ─────────────────────────────────────────────────────────────────
 
 from .locker import save_lock, load_lock, lock_info
+
+# ─── Guard API (model-attached baselines + live drift guard) ──────────────────
+
+from .guard import (Guard, save_baseline, load_baseline, verify_baseline,
+                    baseline_path)
 
 # ─── Trend API ────────────────────────────────────────────────────────────────
 

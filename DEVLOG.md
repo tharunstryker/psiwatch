@@ -744,3 +744,24 @@ v0.15.1 → 0.15.0 was already on PyPI (PyPI never allows re-uploading a version
 v0.15.1 → `psiwatch version` shows release highlights (whatsnew.py) + --short; README restructured;
            CHANGELOG.md added; CI workflow added. 0.15.0 (text drift) was already on PyPI, so these
            ship as a patch. README 'What's New' intentionally still describes 0.15.0.
+
+v0.16.0 → guard.py: model-attached baselines (save_baseline writes <model>.psiwatch.json with the model
+           file's SHA-256) + Guard (rolling window, background checks, @guard.watch sync/async, webhook,
+           on_drift, cooldown, status). Motivation (researched): detection is commoditised (PSI-only
+           clones, Frouros with 28 methods), people hand-roll weak "mean moved > 0.1" checks, pickle/joblib
+           save the model but not its training-data fingerprint, and serving-side monitoring is mostly
+           hosted/SaaS. Strategy: be in the path every model already travels (save -> serve -> test),
+           not "more metrics".
+
+           Calibration lesson (important): the first Guard fired false HIGH alerts on HEALTHY traffic.
+           PSI on a 200-row window of healthy data has p99 = 0.28 (> the 0.25 HIGH line) and p95 = 0.18;
+           the chi-square estimate 9*(1/n_new+1/n_base) under-predicts the tail ~5x (empty tail bins).
+           Fix: Guard-only per-column threshold margins (psi += 5x estimate below 1000 rows, 2x above;
+           mean/std shift += 2 SE; category share += 2 SE; categorical psi uses K-1 d.o.f.), via the new
+           analyze(column_thresholds=...). Result: ~0.6% of healthy runs alert HIGH, a +1 sd shift is
+           caught 100%, +0.5 sd reaches MEDIUM. compare() behaviour is unchanged — the plain numeric
+           analyser still has no small-sample correction (worth a future release).
+           Other design notes: one observe(batch) triggers at most one check; a check never runs
+           concurrently with another; multi-process deployments get one window per process (documented).
+           Verified with real joblib + scikit-learn + Flask + FastAPI before writing docs.
+           Release checklist reminder: bump pyproject.toml + __init__.py, add CHANGELOG.md + whatsnew.py.

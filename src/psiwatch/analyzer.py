@@ -500,7 +500,7 @@ def analyze_categorical(baseline_raw, new_raw, thresholds=None, baseline_summary
 
 def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
             thresholds=None, baseline_summaries=None,
-            text_columns=None, detect_text=True):
+            text_columns=None, detect_text=True, column_thresholds=None):
     """
     Compare baseline and new column dicts.
 
@@ -522,6 +522,9 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
             free text (overrides auto-detection).
         detect_text: auto-detect free-text columns (default True). Set False
             to restore pre-0.15 behaviour (text treated as categorical).
+        column_thresholds: optional dict of column_name -> threshold overrides,
+            applied on top of `thresholds` for that column only (used by the
+            live Guard to widen thresholds for small windows).
 
     Returns dict with:
         'columns': per-column analysis
@@ -566,23 +569,24 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
 
     results = {}
     for col in sorted(common):
+        col_t = {**(thresholds or {}), **((column_thresholds or {}).get(col) or {})}
         col_summary_entry = baseline_summaries.get(col)
 
         if col_summary_entry is not None:
             col_type = col_summary_entry["type"]
             if col_type == "numeric":
                 result = analyze_numeric(
-                    None, new_cols[col], thresholds=thresholds,
+                    None, new_cols[col], thresholds=col_t,
                     baseline_summary=col_summary_entry["summary"],
                 )
             elif col_type == "text":
                 result = analyze_text(
-                    None, new_cols[col], thresholds=thresholds,
+                    None, new_cols[col], thresholds=col_t,
                     baseline_summary=col_summary_entry["summary"],
                 )
             else:
                 result = analyze_categorical(
-                    None, new_cols[col], thresholds=thresholds,
+                    None, new_cols[col], thresholds=col_t,
                     baseline_summary=col_summary_entry["summary"],
                 )
         else:
@@ -601,11 +605,11 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
                 )
 
             if col_type == "numeric":
-                result = analyze_numeric(baseline_cols[col], new_cols[col], thresholds=thresholds)
+                result = analyze_numeric(baseline_cols[col], new_cols[col], thresholds=col_t)
             elif col_type == "text":
-                result = analyze_text(baseline_cols[col], new_cols[col], thresholds=thresholds)
+                result = analyze_text(baseline_cols[col], new_cols[col], thresholds=col_t)
             else:
-                result = analyze_categorical(baseline_cols[col], new_cols[col], thresholds=thresholds)
+                result = analyze_categorical(baseline_cols[col], new_cols[col], thresholds=col_t)
 
             if type_warning:
                 result.setdefault("warnings", []).append(type_warning)

@@ -73,7 +73,7 @@ def _summarize(col_data, text_columns=None, detect_text=True):
 
 
 def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None,
-              text_columns=None, detect_text=True):
+              text_columns=None, detect_text=True, meta=None, quiet=False):
     """
     Save a statistical fingerprint of source to a lock file.
 
@@ -83,6 +83,9 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None,
         columns: optional list of columns to lock (default: all)
         text_columns: optional list of columns to force as free text
         detect_text: auto-detect free-text columns (default True)
+        meta: optional dict stored under "model" (used by save_baseline to
+            record which model file the baseline belongs to)
+        quiet: suppress the "Lock saved" messages
 
     Returns:
         dict — the lock data that was saved
@@ -108,11 +111,44 @@ def save_lock(source, lock_path=DEFAULT_LOCK_FILE, columns=None,
                               detect_text=detect_text),
     }
 
+    if meta:
+        lock["model"] = meta
+
     with open(lock_path, "w", encoding="utf-8") as f:
         json.dump(lock, f, indent=2)
 
-    print(f"  Lock saved → {lock_path}")
-    print(f"  Locked {len(lock['columns'])} columns from {source_label}")
+    if not quiet:
+        print(f"  Lock saved → {lock_path}")
+        print(f"  Locked {len(lock['columns'])} columns from {source_label}")
+    return lock
+
+
+def read_lock(lock_path=DEFAULT_LOCK_FILE):
+    """
+    Read and validate a lock file. Raises FileNotFoundError / ValueError with
+    a clear message if it's missing, not a psiwatch lock, or in the old format.
+    """
+    if not os.path.exists(lock_path):
+        raise FileNotFoundError(
+            f"Lock file not found: {lock_path}\n"
+            f"Run `psiwatch lock <baseline.csv>` first."
+        )
+
+    with open(lock_path, "r", encoding="utf-8") as f:
+        lock = json.load(f)
+
+    if not lock.get("psiwatch_lock"):
+        raise ValueError(f"{lock_path} is not a valid psiwatch lock file.")
+
+    if lock.get("version") == "1" or any(
+        "values_sample" in entry for entry in lock.get("columns", {}).values()
+    ):
+        raise ValueError(
+            f"{lock_path} was created by an older psiwatch version (lock format v1) "
+            f"that stored raw row data instead of a fingerprint. Re-run "
+            f"`psiwatch lock <baseline.csv> --output {os.path.basename(lock_path)}` "
+            f"to regenerate it in the current format."
+        )
     return lock
 
 
@@ -153,27 +189,7 @@ def load_lock(new_source, lock_path=DEFAULT_LOCK_FILE, output=None,
     from .reporter import output_report
     from . import DriftDetected, _build_thresholds
 
-    if not os.path.exists(lock_path):
-        raise FileNotFoundError(
-            f"Lock file not found: {lock_path}\n"
-            f"Run `psiwatch lock <baseline.csv>` first."
-        )
-
-    with open(lock_path, "r", encoding="utf-8") as f:
-        lock = json.load(f)
-
-    if not lock.get("psiwatch_lock"):
-        raise ValueError(f"{lock_path} is not a valid psiwatch lock file.")
-
-    if lock.get("version") == "1" or any(
-        "values_sample" in entry for entry in lock.get("columns", {}).values()
-    ):
-        raise ValueError(
-            f"{lock_path} was created by an older psiwatch version (lock format v1) "
-            f"that stored raw row data instead of a fingerprint. Re-run "
-            f"`psiwatch lock <baseline.csv> --output {os.path.basename(lock_path)}` "
-            f"to regenerate it in the current format."
-        )
+    lock = read_lock(lock_path)
 
     baseline_summaries = _lock_to_summaries(lock)
     new_cols = resolve_input(new_source)

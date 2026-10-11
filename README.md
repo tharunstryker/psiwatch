@@ -116,13 +116,13 @@ psiwatch compare samples/train.csv samples/new.csv
 
 ---
 
-## What's New in 0.15.0
+## What's New in 0.16.0
 
-**Free-text column drift.** Columns of chat messages, reviews or tickets are now auto-detected and analysed as text: vocabulary drift, rising / falling / brand-new words, unseen-word rate, language and script mix, length and structure — pure Python, no models. See [Text Drift](#text-drift--messages-reviews-tickets).
+**Guard your deployed model.** pickle and joblib save the model but not the data it learned from, and nothing watches what it is fed in production. psiwatch now does both:
 
-- `psiwatch version` now shows what's new in your installed version (`--short` prints only the number).
-- New options: `--text-columns a,b` to force text analysis, `--no-text-detect` to turn auto-detection off.
-- **Behaviour change:** a free-text column that used to be reported as `[categorical]` is now reported as `[text]`.
+- `psiwatch.save_baseline(X_train, "model.joblib")` saves a data fingerprint next to the model and records the model file's hash, so a baseline left over from an older model is flagged.
+- `psiwatch.Guard` watches live inputs and alerts (log, webhook or callback) when they drift. Add `@guard.watch` to any Flask / FastAPI / plain function. Checks run in a background thread and can never break a prediction. See [Guard a deployed model](#guard-a-deployed-model).
+- New CLI options: `psiwatch lock train.csv --model model.joblib` and `psiwatch check new.csv --model model.joblib`.
 
 **Past versions →** [CHANGELOG.md](https://github.com/tharunstryker/psiwatch/blob/main/CHANGELOG.md)
 
@@ -139,6 +139,7 @@ psiwatch compare samples/train.csv samples/new.csv
 | Drift over a sequence of datasets | `psiwatch trend` |
 | Check new files as they arrive | `psiwatch watch` |
 | Slack / Discord / webhook alerts | `--webhook URL` |
+| **Guard a deployed model** — baseline next to the model, live drift alerts | `save_baseline()` + `@guard.watch` — see [Guard a deployed model](#guard-a-deployed-model) |
 | Fail a CI build on drift | `--fail-on-drift` |
 | Charts (optional, needs matplotlib) | `--plot drift.png` |
 | Per-column thresholds learned from history | `psiwatch learn-thresholds` |
@@ -308,6 +309,72 @@ for col, data in result["columns"].items():
 | TXT | `--output report.txt` | Server logs, plain text reports |
 
 All outputs include: timestamp, source file names, per-column metrics, health score.
+
+### Guard a deployed model
+
+pickle and joblib save your model — but not the data it learned from, and nothing watches what it is fed in production. psiwatch adds both, with nothing to install (no dependency on joblib, scikit-learn, Flask or FastAPI).
+
+**1. After training, save a baseline next to the model:**
+
+```python
+import joblib, psiwatch
+
+joblib.dump(model, "model.joblib")
+psiwatch.save_baseline(X_train, "model.joblib")   # writes model.joblib.psiwatch.json
+```
+
+The baseline holds summary statistics only, never raw rows, and records the model file's hash. Commit it next to the model. (`X_train` can be a DataFrame, dict, list of dicts, CSV path, or an array plus `feature_names=[...]`.) From the command line: `psiwatch lock train.csv --model model.joblib`.
+
+**2. In your service, watch the live inputs:**
+
+```python
+import joblib, psiwatch
+from flask import Flask, request, jsonify
+
+model = joblib.load("model.joblib")
+guard = psiwatch.Guard.from_model("model.joblib", webhook=SLACK_URL)   # warns if the baseline is stale
+
+@guard.watch                               # observes the first argument; never breaks the prediction
+def score(features):                       # features: {"age": 31, "income": 52000, ...}
+    return float(model.predict_proba([[features["age"], features["income"]]])[0, 1])
+
+app = Flask(__name__)
+
+@app.post("/predict")
+def predict():
+    return jsonify(score=score(request.get_json()))
+```
+
+FastAPI is the same, with `async def` — `@guard.watch` handles async functions:
+
+```python
+@guard.watch
+async def score(features: dict): ...
+```
+
+Not using a decorator? Call `guard.observe(row)` anywhere (a dict, list of dicts, DataFrame, or array with `features=[...]`). `psiwatch.Guard(...).status()` returns a plain dict you can expose on a `/health` endpoint. A runnable, dependency-free demo is in [`docs/examples/model_guard.py`](docs/examples/model_guard.py).
+
+**What happens:** the guard keeps the last `window` rows, checks them against the baseline every `check_every` rows (once at least `min_samples` have arrived) in a background thread, and on drift logs a warning, posts to your `webhook`, and calls `on_drift(result)`. It then stays quiet for `cooldown` seconds; once traffic recovers, a new incident alerts immediately.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `window` | 1000 | Recent rows kept and compared |
+| `min_samples` | 100 | Rows needed before the first check |
+| `check_every` | 100 | New rows between checks |
+| `alert_on` | `"HIGH"` | `"MEDIUM"` to be told about milder drift |
+| `webhook` / `on_drift` | none | Slack, Discord or JSON URL / `callback(result)` |
+| `cooldown` | 3600 | Seconds between repeat alerts for ongoing drift |
+| `sample` | 1.0 | Keep only this fraction of rows (high traffic) |
+| `background` | `True` | Run checks off the request thread |
+
+**Retrained the model?** Run `save_baseline` again. If you forget, `Guard.from_model()` and `psiwatch check --model` warn that the baseline belongs to a different version of the model file.
+
+**Honest limits:**
+- **Small windows are noisy, so the guard is deliberately conservative.** It raises thresholds by the noise expected for its window size. In simulation, about 1 in 180 healthy windows raised a HIGH alert, a +1 standard-deviation shift or a changed category mix was caught every time, and a milder +0.5 sd shift reached MEDIUM (use `alert_on="MEDIUM"` to be told).
+- **Each worker process has its own window and alerts.** A multi-worker Gunicorn/Uvicorn deployment can alert once per worker — rely on your webhook's deduplication or a long `cooldown`.
+- **It watches inputs, not outputs.** It tells you the data changed, not that accuracy dropped; you still need labels for that.
+- **Missing values** (`None`/NaN) are skipped, like NaN in a DataFrame baseline.
+- For text columns the baseline stores word counts for the top 1,000 words (see Text Drift), so don't commit it to a public repo if your text is sensitive.
 
 ### CI/CD — fail on drift
 
@@ -669,7 +736,7 @@ psiwatch is for pipelines and minimal environments where you want a drift check 
 | | psiwatch | evidently | alibi-detect |
 |---|---|---|---|
 | Required dependencies | **0** | 26 | 17 |
-| Wheel size (package only) | ~75 KB | 11.7 MB | 0.4 MB |
+| Wheel size (package only) | ~82 KB | 11.7 MB | 0.4 MB |
 | Python versions | 3.8+ | 3.10+ | 3.9+ |
 
 *Measured October 2026 from each package's PyPI metadata (psiwatch 0.15.1, evidently 0.7.23, alibi-detect 0.13.0; core requirements, excluding extras). Wheel size excludes dependencies — installing the others pulls in numpy, pandas, scikit-learn and more; psiwatch pulls in nothing.*
@@ -710,7 +777,7 @@ pytest
 ```
 
 ```
-============================== 99 passed ==============================
+============================== 149 passed ==============================
 ```
 
 ### Project structure
@@ -726,6 +793,7 @@ psiwatch/
 │   ├── viz.py            ← optional matplotlib chart export (psiwatch[charts])
 │   ├── whatsnew.py      ← release highlights shown by `psiwatch version`
 │   ├── analyzer.py      ← PSI, mean/std, chi-square, percentiles, trend, baseline summaries
+│   ├── guard.py         ← model-attached baselines + live Guard (observe / @watch / alerts)
 │   ├── text.py          ← free-text drift: vocabulary JSD, new words, scripts, length, structure
 │   ├── reporter.py      ← terminal, HTML, JSON, TXT output (HTML-escaped)
 │   ├── updater.py       ← PyPI version check (24h cached) + self-upgrade — CLI-triggered only
@@ -742,6 +810,7 @@ psiwatch/
 │   ├── test_analyzer.py
 │   ├── test_locker.py
 │   ├── test_changelog.py
+│   ├── test_guard.py
 │   ├── test_reporter.py
 │   ├── test_text.py
 │   ├── test_trend.py

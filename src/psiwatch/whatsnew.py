@@ -10,6 +10,17 @@ test fails if the current version is missing from either.
 CHANGELOG_URL = "https://github.com/tharunstryker/psiwatch/blob/main/CHANGELOG.md"
 
 NOTES = {
+    "0.16.0": {
+        "title": "Guard your deployed model",
+        "items": [
+            "save_baseline(X_train, 'model.joblib') saves a data fingerprint next to the model "
+            "and records the model file's hash, so a baseline from an older model is flagged.",
+            "Guard watches live inputs in a rolling window and alerts (log, webhook or callback) "
+            "when they drift. Use @guard.watch on any Flask / FastAPI / plain function, sync or async.",
+            "Checks run in a background thread, are thread-safe, and can never break a prediction.",
+            "psiwatch lock train.csv --model model.joblib  and  psiwatch check new.csv --model model.joblib.",
+        ],
+    },
     "0.15.1": {
         "title": "See what's new from the CLI",
         "items": [

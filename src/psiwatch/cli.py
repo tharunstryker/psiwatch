@@ -9,6 +9,8 @@ Commands:
     psiwatch lock train.csv [--output lock.json]
     psiwatch check new.csv [--lock lock.json] [--fail-on-drift]
     psiwatch lock-info [--lock lock.json]
+    psiwatch lock train.csv --model model.joblib      # baseline next to the model
+    psiwatch check new.csv --model model.joblib
     psiwatch init [--path psiwatch.toml]
     psiwatch update
     psiwatch version
@@ -287,6 +289,9 @@ Examples:
     lp = sub.add_parser("lock", help="Save a statistical baseline lock")
     lp.add_argument("file", help="CSV to lock")
     lp.add_argument("--output", "-o", default="psiwatch.lock.json")
+    lp.add_argument("--model", "-m", default=None,
+                    help="Save the baseline next to this model file "
+                         "(writes <model>.psiwatch.json; overrides --output)")
     lp.add_argument("--columns", "-c", default=None)
     lp.add_argument("--text-columns", default=None,
                     help="Comma-separated columns to force as free text")
@@ -297,6 +302,9 @@ Examples:
     ckp = sub.add_parser("check", help="Compare a CSV against a lock file")
     ckp.add_argument("file", help="New CSV to check")
     ckp.add_argument("--lock", "-l", default="psiwatch.lock.json")
+    ckp.add_argument("--model", "-m", default=None,
+                     help="Check against the baseline saved next to this model "
+                          "file (overrides --lock)")
     ckp.add_argument("--output", "-o", default=None)
     ckp.add_argument("--columns", "-c", default=None)
     ckp.add_argument("--ignore-columns", "-x", default=None)
@@ -308,6 +316,8 @@ Examples:
     # ── lock-info ──
     lip = sub.add_parser("lock-info", help="Show what's in a lock file")
     lip.add_argument("--lock", "-l", default="psiwatch.lock.json")
+    lip.add_argument("--model", "-m", default=None,
+                     help="Show the baseline saved next to this model file")
 
     # ── dispatch ──
     args = parser.parse_args()
@@ -361,6 +371,14 @@ Examples:
     if args.command == "lock":
         from .locker import save_lock
         try:
+            if getattr(args, "model", None):
+                from .guard import save_baseline
+                path = save_baseline(
+                    args.file, args.model, columns=_parse_list(args.columns),
+                    text_columns=_parse_list(getattr(args, "text_columns", None)),
+                    detect_text=not getattr(args, "no_text_detect", False), quiet=True)
+                print(f"  Baseline saved → {path}")
+                return
             save_lock(args.file, lock_path=args.output,
                       columns=_parse_list(args.columns),
                       text_columns=_parse_list(getattr(args, "text_columns", None)),
@@ -374,8 +392,15 @@ Examples:
         from .locker import load_lock
         from .webhook import send_webhook
         try:
+            lock_path = args.lock
+            if getattr(args, "model", None):
+                from .guard import baseline_path, verify_baseline
+                lock_path = baseline_path(args.model)
+                ok, msg = verify_baseline(args.model)
+                if ok is False:
+                    print(f"\n  WARNING: {msg}")
             result = load_lock(
-                args.file, lock_path=args.lock, output=args.output,
+                args.file, lock_path=lock_path, output=args.output,
                 columns=_parse_list(args.columns),
                 ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
                 psi_threshold=args.psi_threshold,
@@ -394,7 +419,11 @@ Examples:
 
     if args.command == "lock-info":
         from .locker import lock_info
-        lock_info(lock_path=args.lock)
+        lock_path = args.lock
+        if getattr(args, "model", None):
+            from .guard import baseline_path
+            lock_path = baseline_path(args.model)
+        lock_info(lock_path=lock_path)
         return
 
     if args.command == "compare":

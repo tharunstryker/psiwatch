@@ -56,3 +56,11 @@ a bug. Swap in your own CSVs to test real data.
 
 See `java-interop.md` for the full write-up, including the exact JSON shape
 `psiwatch` produces and a CI/CD gating example.
+
+## Python: guard a deployed model
+
+`model_guard.py` — a standard-library-only demo: train and pickle a toy model, `psiwatch.save_baseline()` next to it, serve predictions through `@guard.watch`, and watch an alert fire when traffic drifts.
+
+```bash
+python model_guard.py
+```

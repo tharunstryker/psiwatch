@@ -2,6 +2,17 @@
 
 All notable changes to psiwatch, newest first. Installed psiwatch shows the highlights of your version with `psiwatch version`.
 
+## v0.16.0
+- **Added: model-attached baselines.** `psiwatch.save_baseline(X_train, "model.joblib")` writes a bounded fingerprint of the training data to `model.joblib.psiwatch.json` (summary statistics only, never raw rows) and records the model file's SHA-256. `load_baseline()`, `verify_baseline()` and `baseline_path()` complete the API. If the model file changes (you retrained it), `Guard.from_model()` and `psiwatch check --model` warn that the baseline is stale. Accepts DataFrames, dicts, lists of dicts, CSV paths, and numpy/list arrays with `feature_names`.
+- **Added: `psiwatch.Guard` — a drift guard for deployed models.** Keeps a rolling window of live inputs, compares it to the baseline, and alerts through the log, a Slack/Discord/generic webhook, and/or an `on_drift(result)` callback, with a cooldown (a recovery resets it so a new incident alerts immediately). `@guard.watch` decorates any Flask / FastAPI / plain function, sync or async; `guard.observe()`, `check()`, `status()`, `reset()` and `wait()` for direct use. Options: `window`, `min_samples`, `check_every`, `alert_on` (`"HIGH"`/`"MEDIUM"`), `thresholds`, `webhook`, `on_drift`, `cooldown`, `sample`, `background`, `columns`, `ignore_columns`, `features`.
+  - Checks and alerts run in a background thread by default, so serving never waits on monitoring. Thread-safe. `@guard.watch` logs and swallows its own errors, so a prediction is never lost because of psiwatch. None/NaN values are treated as missing.
+  - **Small-window noise correction.** PSI on healthy 200-row windows exceeds the usual HIGH line (0.25) about 1 time in 100 and the MEDIUM line (0.1) about 1 time in 4. The Guard widens each column's PSI / mean-shift / std-shift / category-share thresholds by the noise expected for its window size (text columns already had their own correction). In simulation: about 0.6% of healthy runs raise a HIGH alert (1 in 180), a +1 standard-deviation shift or a changed category mix is caught 100% of the time, and a +0.5 sd shift reaches MEDIUM almost always (use `alert_on="MEDIUM"` to be told).
+- **Added (CLI):** `psiwatch lock train.csv --model model.joblib`, `psiwatch check new.csv --model model.joblib`, `psiwatch lock-info --model model.joblib`.
+- **Added (API):** `analyze(column_thresholds={column: {...}})` for per-column threshold overrides; `locker.read_lock()`; `save_lock(meta=..., quiet=True)`.
+- **Added:** `docs/examples/model_guard.py` — a standard-library-only demo of the whole loop.
+- Limits worth knowing: each worker process has its own window and alerts (a multi-worker Gunicorn deployment alerts once per worker — use the webhook's own dedupe or `cooldown`); the Guard watches *inputs*, not model outputs or accuracy.
+- Tests: 149 (99 + 50 new, including property tests that healthy windows stay quiet and a 1-sd shift is still caught). Verified end to end with real joblib, scikit-learn, Flask and FastAPI.
+
 ## v0.15.1
 - **Added:** `psiwatch version` now also prints the highlights of the installed release and a link to the full changelog. `psiwatch version --short` prints only the number, for scripts.
 - **Docs:** README restructured — Install and Quickstart come first (`pip install psiwatch`), sections are grouped (Usage, Text Drift, Understanding the Report, Monitoring, Configuration, Development), and the hard-coded version line was removed. Release history now lives in this file.
