@@ -1,0 +1,4 @@
+flask
+joblib
+scikit-learn
+psiwatch>=0.16.0

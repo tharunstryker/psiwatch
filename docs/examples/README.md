@@ -64,3 +64,12 @@ See `java-interop.md` for the full write-up, including the exact JSON shape
 ```bash
 python model_guard.py
 ```
+
+## Python: joblib + Flask + psiwatch
+
+`flask-example/` — the same idea with a real stack: train and `joblib.dump` a model, save a baseline next to it, serve it with Flask, and watch the live requests with `@guard.watch`. Includes a script that sends healthy and drifted traffic so you can see the alert. See [flask-example/README.md](flask-example/README.md).
+
+```bash
+cd flask-example
+python train.py && python app.py
+```
