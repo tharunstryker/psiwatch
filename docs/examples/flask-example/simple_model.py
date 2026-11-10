@@ -1,6 +1,6 @@
 """
 simple_model.py - a tiny stand-in model, used ONLY if scikit-learn is not
-installed (scikit-learn can be hard to install on Termux/Android).
+installed (scikit-learn can be hard to install on some minimal systems).
 
 It has the same predict_proba() interface as a scikit-learn classifier, so
 the rest of the example does not change. It lives in its own file so that

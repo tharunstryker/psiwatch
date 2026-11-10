@@ -1,10 +1,9 @@
 # psiwatch — Developer Log & Troubleshooting Guide
 
-How I built and published a Python package entirely from Android using Termux — with every error I hit and how I fixed it.
+How I built and published a Python package — with every error I hit and how I fixed it.
 
 **Author:** Tharun (TharunStryker)
 **Course:** B.Tech AI & Data Science
-**Built on:** Android phone, Termux
 **Published:** https://pypi.org/project/psiwatch
 **GitHub:** https://github.com/tharunstryker/psiwatch
 
@@ -12,11 +11,7 @@ How I built and published a Python package entirely from Android using Termux �
 
 ## The Story
 
-This entire library was built on an Android phone using Termux. No laptop. No PC. No IDE. Just Python, a terminal, and a lot of problem solving.
-
 The idea came from a real problem in AI/Data Science — models fail silently in production because data changes over time and nobody catches it early enough. Most drift detection tools are too heavy for lightweight use. So I built one from scratch with zero dependencies.
-
-From first line of code to published PyPI package — all on Android.
 
 ---
 
@@ -672,19 +667,7 @@ ls ~/storage/shared/Download/   # after termux-setup-storage
 
 ---
 
-## Built entirely on Android
-
-This project was built on an Android phone using Termux with no laptop, no PC, and no IDE.
-
-- Language: Python 3.13
-- Terminal: Termux
-- Version control: Git
-- Published: PyPI
-- Pair programming: Claude AI
-
----
-
-*MIT © 2026 Tharun · Naeris · Aevra Studio*
+*MIT © 2026 Tharun*
 v0.15.0 → New module text.py: free-text column drift, pure Python, zero dependencies.
            Free-text columns (non-numeric, several words/value, mostly unique values) are
            auto-detected by loader.detect_type() -> "text" and analysed by analyze_text()

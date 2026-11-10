@@ -844,6 +844,4 @@ No pip conflicts. No install failures. If Python runs, psiwatch runs.
 
 ## License
 
-MIT © 2026 Tharun · [Naeris](https://naeris.vercel.app)
-
-Built entirely on Android using Termux. No laptop. No PC. No IDE.
+MIT © 2026 Tharun

@@ -18,7 +18,7 @@ python train.py          # creates model.joblib and model.joblib.psiwatch.json
 python app.py            # leave this running
 ```
 
-In a second terminal (in Termux: swipe from the left edge, **New session**):
+In a second terminal:
 
 ```bash
 python send_traffic.py healthy    # looks like the training data -> "alerts": 0
