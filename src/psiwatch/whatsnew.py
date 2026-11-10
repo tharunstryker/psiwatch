@@ -10,6 +10,17 @@ test fails if the current version is missing from either.
 CHANGELOG_URL = "https://github.com/tharunstryker/psiwatch/blob/main/CHANGELOG.md"
 
 NOTES = {
+    "0.16.1": {
+        "title": "Fixes, and a drift check for your tests",
+        "items": [
+            "A baseline column that never varied (always 0) is no longer invisible to a Guard "
+            "or lock when it jumps to a new value.",
+            "Chi-square no longer explodes when a brand-new category appears.",
+            "compare --thresholds-file now scores health like a normal compare and writes real "
+            "HTML/TXT reports.",
+            "New: psiwatch.assert_no_drift(old, new) for pytest.",
+        ],
+    },
     "0.16.0": {
         "title": "Guard your deployed model",
         "items": [

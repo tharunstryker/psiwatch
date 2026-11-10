@@ -332,7 +332,9 @@ def test_lock_info_handles_text_columns(lock_path, capsys):
 # ─── Reports ──────────────────────────────────────────────────────────────────
 
 def test_html_report_escapes_text_metrics(tmp_path):
-    base = [f"order {i} status update please" for i in range(60)]
+    # Baseline has no digits; new data is full of them, so the <num> token
+    # genuinely rises (0% -> 100% of documents) and appears in the report.
+    base = [f"order {chr(97 + i % 26)}{chr(97 + i // 26)} status update please" for i in range(60)]
     new = [f"refund {i} <img src=x onerror=alert(1)> now" for i in range(60)]
     out = tmp_path / "r.html"
     psiwatch.compare({"<b>col</b>": base}, {"<b>col</b>": new},

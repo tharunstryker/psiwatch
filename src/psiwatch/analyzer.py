@@ -197,10 +197,13 @@ def _chi_square_from_freq(base_freq, new_freq):
     rather than from raw values. Equivalent to _chi_square() since that
     function only ever uses count/total (i.e. frequency share) per
     category — never row order or raw identity."""
-    all_cats = set(base_freq) | set(new_freq)
+    # Categories the baseline never had are skipped: their expected share is
+    # zero, so a 1e-6 floor turned one new category into a value in the tens of
+    # thousands. New categories are reported on their own ("New categories
+    # found") and by PSI, so nothing is lost.
     chi2 = 0.0
-    for cat in all_cats:
-        expected = max(base_freq.get(cat, 0), 1e-6)
+    for cat in base_freq:
+        expected = max(base_freq[cat], 1e-6)
         observed = new_freq.get(cat, 0)
         chi2 += ((observed - expected) ** 2) / expected
     return round(chi2, 4)
@@ -217,6 +220,9 @@ DEFAULT_THRESHOLDS = {
     "std_shift_high": 0.5,
     "category_share_shift": 0.15,
     "chi_square_medium": 0.5,
+    # Constant baseline column (std == 0): share of new values that differ from the constant
+    "constant_change_medium": 0.05,
+    "constant_change_high": 0.20,
     # Free-text columns (v0.15.0) — see text.py
     "text_jsd_medium": 0.005,        # noise-corrected Jensen-Shannon divergence, bits
     "text_jsd_high": 0.04,
@@ -345,6 +351,30 @@ def analyze_numeric(baseline_raw, new_raw, thresholds=None, baseline_summary=Non
     elif mean_shift > t["mean_shift_medium"]:
         issues.append(f"Mean shifted by {mean_shift:.2f} std devs ({b_mean:.2f} → {n_mean:.2f})")
         severity = _worst(severity, "MEDIUM")
+
+    # Constant baseline (std == 0): mean/std shift are undefined (division by
+    # zero), and a locked baseline's histogram has no width, so PSI cannot see
+    # a change either. Without this check a column that was always 0 and is
+    # suddenly 1,000,000 would pass. Measure what share of the new values
+    # differ from the constant instead.
+    if b_std == 0 and b_min == b_max:
+        tol = 1e-9 * max(1.0, abs(b_mean))
+        changed = sum(1 for v in new if abs(v - b_mean) > tol)
+        changed_share = changed / len(new)
+        metrics["baseline_constant"] = True
+        metrics["constant_changed_share"] = round(changed_share, 4)
+        if changed_share > t["constant_change_high"]:
+            issues.append(
+                f"Baseline column was constant ({b_mean:g}) but "
+                f"{changed_share*100:.0f}% of new values differ ({b_mean:g} → mean {n_mean:g})"
+            )
+            severity = _worst(severity, "HIGH")
+        elif changed_share > t["constant_change_medium"]:
+            issues.append(
+                f"Baseline column was constant ({b_mean:g}) but "
+                f"{changed_share*100:.0f}% of new values differ"
+            )
+            severity = _worst(severity, "MEDIUM")
 
     # Std shift
     std_shift = abs(n_std - b_std) / b_std if b_std > 0 else 0
@@ -498,6 +528,40 @@ def analyze_categorical(baseline_raw, new_raw, thresholds=None, baseline_summary
 
 # ─── Main Analyze ─────────────────────────────────────────────────────────────
 
+def summarize_results(results):
+    """
+    Health score (0-100) and summary counts for a {column: result} dict.
+    Any HIGH column hard-caps the score at 50. Shared by analyze() and
+    adapt.compare_with_learned_thresholds() so both score identically.
+    """
+    score_map = {"PASS": 0, "MEDIUM": 50, "HIGH": 100, "UNKNOWN": 0}
+    if results:
+        raw_score = sum(score_map[r["severity"]] for r in results.values()) / len(results)
+        health = round(100 - raw_score)
+        if any(r["severity"] == "HIGH" for r in results.values()):
+            health = min(health, 50)
+    else:
+        health = 100
+
+    counts = {"HIGH": 0, "MEDIUM": 0, "PASS": 0, "UNKNOWN": 0}
+    for r in results.values():
+        counts[r["severity"]] += 1
+
+    drifted = [c for c, r in results.items() if r["severity"] in ("HIGH", "MEDIUM")]
+    stable = [c for c, r in results.items() if r["severity"] == "PASS"]
+
+    summary = {
+        "high_count": counts["HIGH"],
+        "medium_count": counts["MEDIUM"],
+        "pass_count": counts["PASS"],
+        "unknown_count": counts["UNKNOWN"],
+        "total_columns": len(results),
+        "drifted_columns": sorted(drifted),
+        "stable_columns": sorted(stable),
+    }
+    return health, summary
+
+
 def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
             thresholds=None, baseline_summaries=None,
             text_columns=None, detect_text=True, column_thresholds=None):
@@ -617,33 +681,7 @@ def analyze(baseline_cols, new_cols, columns=None, ignore_columns=None,
         result["type"] = col_type
         results[col] = result
 
-    # Health score — any HIGH hard-caps at ≤50
-    score_map = {"PASS": 0, "MEDIUM": 50, "HIGH": 100, "UNKNOWN": 0}
-    if results:
-        raw_score = sum(score_map[r["severity"]] for r in results.values()) / len(results)
-        health = round(100 - raw_score)
-        if any(r["severity"] == "HIGH" for r in results.values()):
-            health = min(health, 50)
-    else:
-        health = 100
-
-    # Summary
-    counts = {"HIGH": 0, "MEDIUM": 0, "PASS": 0, "UNKNOWN": 0}
-    for r in results.values():
-        counts[r["severity"]] += 1
-
-    drifted = [c for c, r in results.items() if r["severity"] in ("HIGH", "MEDIUM")]
-    stable = [c for c, r in results.items() if r["severity"] == "PASS"]
-
-    summary = {
-        "high_count": counts["HIGH"],
-        "medium_count": counts["MEDIUM"],
-        "pass_count": counts["PASS"],
-        "unknown_count": counts["UNKNOWN"],
-        "total_columns": len(results),
-        "drifted_columns": sorted(drifted),
-        "stable_columns": sorted(stable),
-    }
+    health, summary = summarize_results(results)
 
     return {
         "columns": results,

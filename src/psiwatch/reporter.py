@@ -476,7 +476,7 @@ def to_html(analysis, filepath=None, source_info=None, silent=False, embed_chart
 </head>
 <body>
 <header>
-  <h1>DRIFT<span>WATCH</span> REPORT</h1>
+  <h1>PSI<span>WATCH</span> REPORT</h1>
   <div class="meta">{meta_line}</div>
 </header>
 

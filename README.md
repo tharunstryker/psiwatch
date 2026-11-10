@@ -37,39 +37,61 @@ psiwatch compare train.csv production.csv
 ══════════════════════════════════════════════════════════════
   PSIWATCH REPORT
   baseline: train.csv  →  new: production.csv
-  Generated: 2026-06-14 09:00:00
+  Generated: 2026-11-10 05:45:14
 ══════════════════════════════════════════════════════════════
 
   [!!] credit_score  [numeric]  — HIGH DRIFT
-     → Mean shifted by 2.20 std devs (752.00 → 624.00)  ↓
-     → PSI = 11.1200 (significant drift)
-     ┌ Mean:    752.00 → 624.00  ↓
-     ├ Std:     48.00 → 71.00
-     ├ PSI:     11.1200
-     ├ Min:     600.00 → 420.00
-     ├ P25:     720.00 → 560.00
-     ├ Median:  750.00 → 620.00
-     ├ P75:     790.00 → 690.00
-     └ Max:     850.00 → 800.00
+     → Mean shifted by 1.48 std devs (699.94 → 624.24)
+     → Std dev shifted by 33.6%
+     → PSI = 1.7394 (significant drift)
+     ┌ Mean:    699.94 → 624.24
+     ├ Std:     50.99 → 68.11
+     ├ PSI:     1.7394
+     ├ Min:     526.00 → 395.00
+     ├ P25:     667.00 → 580.00
+     ├ Median:  699.00 → 621.50
+     ├ P75:     733.00 → 672.00
+     └ Max:     888.00 → 830.00
+
+  [OK] income  [numeric]  — STABLE
+     → No drift detected
+     ┌ Mean:    62123.08 → 63111.91
+     ├ Std:     8866.73 → 8704.08
+     ├ PSI:     0.0410
+     ├ Min:     37208.00 → 30687.00
+     ├ P25:     56184.75 → 57164.75
+     ├ Median:  62024.00 → 63217.50
+     ├ P75:     68149.25 → 69254.25
+     └ Max:     92616.00 → 88003.00
 
   [!!] loan_type  [categorical]  — HIGH DRIFT
      → New categories found: ['BNPL', 'Crypto']
      → Categories vanished from new data: ['Personal']
-     → PSI = 4.1900
-     ┌ PSI:          4.1900
-     ├ Chi-square:   3.8200
-     ├ New cats:     ['BNPL', 'Crypto']
-     └ Vanished:     ['Personal']
-
-  [OK] customer_id  [categorical]  — STABLE
-     → No drift detected
+     → Category share shifted: 'Personal' 27.9% → 0.0%
+     → PSI = 6.7997
+     ┌ PSI:         6.7997
+     ├ Chi-square:  0.2903
+     └ New cats:    ['BNPL', 'Crypto']
 
 ──────────────────────────────────────────────────────────────
   HIGH: 2   MEDIUM: 0   PASS: 1
 
-  [!!] Drift Health Score: 11/100  (Significant Drift)
+  [!!] Drift Health Score: 33/100  (Significant Drift)
 ══════════════════════════════════════════════════════════════
 ```
+
+Watching a deployed model instead? Attach a baseline to the model and guard its live inputs:
+
+```python
+psiwatch.save_baseline(X_train, "model.joblib")                  # after joblib.dump(model, ...)
+guard = psiwatch.Guard.from_model("model.joblib", webhook=SLACK_URL)
+
+@guard.watch                                                     # never breaks a prediction
+def predict(features):
+    return model.predict_proba([list(features.values())])[0, 1]
+```
+
+See [Guard a deployed model](#guard-a-deployed-model) and the runnable [Flask example](https://github.com/tharunstryker/psiwatch/tree/main/docs/examples/flask-example).
 
 ---
 
@@ -116,7 +138,18 @@ psiwatch compare samples/train.csv samples/new.csv
 
 ---
 
-## What's New in 0.16.0
+## What's New
+
+### 0.16.1 — fixes
+
+- **Fixed: a column that never varied was invisible to a Guard or lock.** If the baseline column was constant (always `0`, always `"free"`-tier `1`…), a Guard or `psiwatch check` could not see it jump to `1,000,000`. It now reports how much of the new data differs from the constant.
+- **Fixed:** the chi-square figure no longer explodes (tens of thousands) when a brand-new category appears. New categories are still reported on their own.
+- **Fixed:** `psiwatch compare --thresholds-file` now scores health like a normal compare (any HIGH column caps it at 50), honours `--text-columns`, and writes real HTML/TXT for `--output report.html`.
+- **Fixed:** the HTML report title said `DRIFTWATCH`; it now says `PSIWATCH`. The README example output and the trend-direction note now match what psiwatch really prints.
+- **Changed:** rising/falling words must move by at least one percentage point of documents to be listed.
+- **Added:** `psiwatch.assert_no_drift(old, new)` — a one-line drift check for pytest. See [Use it in your tests](#use-it-in-your-tests).
+
+### 0.16.0 — Guard your deployed model
 
 **Guard your deployed model.** pickle and joblib save the model but not the data it learned from, and nothing watches what it is fed in production. psiwatch now does both:
 
@@ -143,7 +176,7 @@ psiwatch compare samples/train.csv samples/new.csv
 | Fail a CI build on drift | `--fail-on-drift` |
 | Charts (optional, needs matplotlib) | `--plot drift.png` |
 | Per-column thresholds learned from history | `psiwatch learn-thresholds` |
-| Inputs: CSV, Parquet, SQL, pandas, dicts, lists | see [Input modes](#input-modes) |
+| Inputs: CSV, SQL, dicts, lists — no extra install; Parquet and DataFrames need pandas (+ pyarrow) | see [Input modes](#input-modes) |
 | Outputs: terminal, HTML, JSON, TXT | `--output report.html` |
 
 ---
@@ -345,6 +378,15 @@ def predict():
     return jsonify(score=score(request.get_json()))
 ```
 
+**To see alerts in your terminal, turn logging on.** psiwatch reports drift through Python's `logging` module, which prints nothing until you configure it:
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO)    # alerts appear as: WARNING psiwatch: drift detected in model.joblib ...
+```
+
+(Or use the `webhook=` / `on_drift=` options.) A complete, runnable version with Flask and joblib is in [`docs/examples/flask-example`](https://github.com/tharunstryker/psiwatch/tree/main/docs/examples/flask-example).
+
 FastAPI is the same, with `async def` — `@guard.watch` handles async functions:
 
 ```python
@@ -375,6 +417,17 @@ Not using a decorator? Call `guard.observe(row)` anywhere (a dict, list of dicts
 - **It watches inputs, not outputs.** It tells you the data changed, not that accuracy dropped; you still need labels for that.
 - **Missing values** (`None`/NaN) are skipped, like NaN in a DataFrame baseline.
 - For text columns the baseline stores word counts for the top 1,000 words (see Text Drift), so don't commit it to a public repo if your text is sensitive.
+
+### Use it in your tests
+
+```python
+from psiwatch import assert_no_drift
+
+def test_latest_data_has_not_drifted():
+    assert_no_drift("train.csv", "latest.csv")       # AssertionError names every drifted column
+```
+
+`min_health=80` sets the lowest allowed health score; `max_severity="MEDIUM"` fails only on HIGH columns. It accepts the same inputs and options as `compare()`.
 
 ### CI/CD — fail on drift
 
@@ -476,7 +529,8 @@ How to read what psiwatch tells you.
 | Std Deviation Shift | Spread of values changed |
 | PSI | Overall distribution shape changed |
 | Percentiles | Min, P25, Median, P75, Max compared |
-| Trend Direction | Which way the mean moved (↑ ↓ →) |
+| Trend Direction | Which way the mean moved (`up` / `down` / `stable`, in `result`) |
+| Constant-baseline check | A column that never varied in training (always `0`) now has different values |
 
 #### Categorical columns — city, grade, status, loan type
 
@@ -525,15 +579,7 @@ Every report includes a single 0–100 score.
 
 ### Trend direction
 
-Numeric columns include a trend direction — which way the mean moved:
-
-| Symbol | Meaning |
-|---|---|
-| ↑ | Mean increased in new data |
-| ↓ | Mean decreased in new data |
-| → | Mean stable |
-
-Available in terminal output, HTML report, and in `result["metrics"]["trend_direction"]`.
+Numeric columns record which way the mean moved, in `result["columns"][col]["metrics"]["trend_direction"]`: `"up"` (mean increased in the new data), `"down"` (decreased) or `"stable"`. It is part of the returned result, not printed in the terminal or HTML report.
 
 ### Vanished category detection
 
@@ -777,7 +823,7 @@ pytest
 ```
 
 ```
-============================== 149 passed ==============================
+============================== 164 passed ==============================
 ```
 
 ### Project structure
@@ -788,6 +834,7 @@ psiwatch/
 │   └── ci.yml            ← pytest on Python 3.8–3.13 + build/version check
 ├── src/psiwatch/
 │   ├── __init__.py      ← public API + DriftDetected exception
+│   ├── testing.py       ← assert_no_drift() for pytest / unittest
 │   ├── loader.py        ← CSV, Parquet, SQL, dict, list, DataFrame input
 │   ├── adapt.py          ← learn-thresholds: per-column learned PSI thresholds
 │   ├── viz.py            ← optional matplotlib chart export (psiwatch[charts])

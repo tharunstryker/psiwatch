@@ -446,15 +446,16 @@ Examples:
                     args.old, args.new, args.thresholds_file,
                     columns=_parse_list(args.columns),
                     ignore_columns=_parse_list(getattr(args, "ignore_columns", None)),
+                    text_columns=_parse_list(getattr(args, "text_columns", None)),
+                    detect_text=not getattr(args, "no_text_detect", False),
                 )
-                print(f"\n  Adaptive thresholds used for: "
-                      f"{', '.join(result['adaptive_columns']) or '(none matched)'}")
-                print(f"  Health Score: {result['health_score']}/100")
-                print(f"  Drifted columns: {result['summary']['drifted_columns'] or 'none'}\n")
-                if output_path:
-                    with open(output_path, "w", encoding="utf-8") as f:
-                        json.dump(result, f, indent=2)
-                    print(f"  Saved → {output_path}\n")
+                from .reporter import output_report
+                from . import _source_label
+                output_report(result, output=output_path,
+                              source_info=_source_label(args.old, args.new),
+                              silent=_using_tmp)
+                print(f"  Adaptive thresholds used for: "
+                      f"{', '.join(result['adaptive_columns']) or '(none matched)'}\n")
                 if args.fail_on_drift and result["health_score"] < 80:
                     sys.exit(1)
             else:

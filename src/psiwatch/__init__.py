@@ -47,13 +47,16 @@ psiwatch — Dataset drift detection library.
     def predict(features):
         return model.predict(...)
 
+    # In a test suite: raises AssertionError listing the drifted columns
+    psiwatch.assert_no_drift("train.csv", "latest.csv")
+
     # Free-text columns (chatbot messages, reviews, tickets) are auto-detected
     # and analysed for vocabulary, language/script, length and structure drift.
     # Force or disable detection explicitly:
     psiwatch.compare("old.csv", "new.csv", text_columns=["message"])
     psiwatch.compare("old.csv", "new.csv", detect_text=False)
 
-    # Parquet files — works anywhere a CSV path works (auto-detected by extension)
+    # Parquet files — works like a CSV path (needs: pip install pandas pyarrow)
     psiwatch.compare("old.parquet", "new.parquet")
 
     # SQL — bring your own DB-API connection (sqlite3, psycopg2, pymysql, etc.)
@@ -71,12 +74,13 @@ from .analyzer import analyze as _analyze
 from .reporter import output_report
 from .updater import check_for_update
 
-__version__ = "0.16.0"
+__version__ = "0.16.1"
 __all__ = [
     "compare", "compare_data", "compare_columns", "analyze",
     "DriftDetected", "save_lock", "load_lock", "lock_info",
     "analyze_trend", "watch_directory", "write_example_config",
     "Guard", "save_baseline", "load_baseline", "verify_baseline", "baseline_path",
+    "assert_no_drift",
 ]
 
 # v0.12.0 fix: `import psiwatch` no longer makes a network call to PyPI.
@@ -241,6 +245,10 @@ def analyze(old, new, columns=None, ignore_columns=None,
                     ignore_columns=ignore_columns, thresholds=t,
                     text_columns=text_columns, detect_text=detect_text)
 
+
+# ─── Test helper ──────────────────────────────────────────────────────────────
+
+from .testing import assert_no_drift
 
 # ─── Lock API ─────────────────────────────────────────────────────────────────
 

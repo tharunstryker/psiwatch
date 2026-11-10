@@ -53,6 +53,7 @@ TEXT_MIN_DOCS = 5         # minimum non-empty values per dataset to analyse
 _MIN_BIN_COUNT = 5        # vocab bins with fewer combined tokens are merged
 _TOP_TERMS = 5            # rising / falling terms reported
 _TOP_EMERGING = 8         # brand-new terms reported
+_MIN_TERM_CHANGE = 0.01   # a rising/falling term must move by >= 1 point of documents
 _LN2 = math.log(2)
 # Words inside one message are correlated (topic words cluster), so two
 # samples from the SAME source diverge more than a plain multinomial predicts.
@@ -475,6 +476,10 @@ def analyze_text(baseline_raw, new_raw, thresholds=None, baseline_summary=None):
             for i in ranked:
                 term = labels[i]
                 p, q = p_list[i] / n_p_tok, q_list[i] / n_q_tok
+                # Skip tiny moves (e.g. 20.2% -> 20.8% of documents): they are
+                # noise, not an explanation of the drift.
+                if abs(new_dc.get(term, 0) / n_docs - vocab[term][1] / b_docs) < _MIN_TERM_CHANGE:
+                    continue
                 entry = {
                     "term": term,
                     "baseline_doc_pct": _pct(vocab[term][1] / b_docs),

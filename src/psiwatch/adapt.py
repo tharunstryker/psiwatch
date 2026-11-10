@@ -231,7 +231,8 @@ def load_thresholds(filepath):
 
 def compare_with_learned_thresholds(old, new, thresholds_file,
                                      columns=None, ignore_columns=None,
-                                     base_thresholds=None):
+                                     base_thresholds=None,
+                                     text_columns=None, detect_text=True):
     """
     Run a normal compare() but use per-column learned psi_high values from
     a thresholds file wherever available, falling back to the global
@@ -252,6 +253,9 @@ def compare_with_learned_thresholds(old, new, thresholds_file,
         base_thresholds: optional dict — used as the fallback base for any
             column not present in the learned thresholds file (defaults to
             psiwatch's normal DEFAULT_THRESHOLDS)
+        text_columns: optional list — force these columns to be analysed as
+            free text (same as compare())
+        detect_text: auto-detect free-text columns (default True)
 
     Returns:
         Same shape as psiwatch.compare()'s return value, with an added
@@ -275,9 +279,9 @@ def compare_with_learned_thresholds(old, new, thresholds_file,
     if ignore_columns:
         all_columns = [c for c in all_columns if c not in ignore_columns]
 
+    forced_text = set(text_columns or [])
     merged_columns = {}
     adaptive_columns = []
-    high_count = medium_count = pass_count = 0
 
     for col in all_columns:
         col_thresholds = dict(base)
@@ -292,6 +296,8 @@ def compare_with_learned_thresholds(old, new, thresholds_file,
             {col: old_resolved.get(col, [])},
             {col: new_resolved.get(col, [])},
             thresholds=col_thresholds,
+            text_columns=[col] if col in forced_text else None,
+            detect_text=detect_text,
         )
 
         col_result = single_result["columns"].get(col)
@@ -299,30 +305,13 @@ def compare_with_learned_thresholds(old, new, thresholds_file,
             continue
         merged_columns[col] = col_result
 
-        sev = col_result["severity"]
-        if sev == "HIGH":
-            high_count += 1
-        elif sev == "MEDIUM":
-            medium_count += 1
-        elif sev == "PASS":
-            pass_count += 1
-
-    total = max(high_count + medium_count + pass_count, 1)
-    health_score = round(100 * (pass_count + 0.5 * medium_count) / total)
-
-    drifted = [c for c, r in merged_columns.items() if r["severity"] in ("HIGH", "MEDIUM")]
-    stable = [c for c, r in merged_columns.items() if r["severity"] == "PASS"]
+    from .analyzer import summarize_results
+    health_score, summary = summarize_results(merged_columns)
 
     return {
         "health_score": health_score,
         "warnings": [],
-        "summary": {
-            "high_count": high_count,
-            "medium_count": medium_count,
-            "pass_count": pass_count,
-            "drifted_columns": drifted,
-            "stable_columns": stable,
-        },
+        "summary": summary,
         "columns": merged_columns,
         "adaptive_columns": sorted(adaptive_columns),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
